@@ -1,4 +1,4 @@
-// The HTML side: score bar, overlay screens, level picker and skin picker.
+// The HTML side: score bar, overlay screens and the level picker.
 (function (global) {
   'use strict';
 
@@ -10,10 +10,10 @@
   function UI() {
     this.overlay = document.getElementById('overlay');
     this.grid = document.getElementById('level-grid');
-    this.skinGrid = document.getElementById('skin-grid');
     this.detail = document.getElementById('level-detail');
     this.bar = document.getElementById('hud-progress');
     this.pauseBtn = document.getElementById('hud-pause');
+    this.timeBox = document.getElementById('hud-time');
     this.game = null;
 
     // Every <section data-screen="..."> by name, e.g. this.screens.menu
@@ -38,14 +38,12 @@
     // closest() finds the button even if you clicked the icon inside it.
     document.addEventListener('click', (e) => {
       const tile = e.target.closest('[data-level]');
-      const skin = e.target.closest('[data-skin]');
       const button = e.target.closest('[data-action]');
       if (tile) game.action('play', Number(tile.dataset.level));
-      else if (skin) game.action('skin', Number(skin.dataset.skin));
       else if (button) game.action(button.dataset.action);
     });
 
-    // Moving the mouse over a level tile shows that map behind the picker.
+    // Moving the mouse over a level tile shows that layout behind the picker.
     this.grid.addEventListener('mouseover', (e) => {
       const tile = e.target.closest('[data-level]');
       if (tile) this.previewLevel(Number(tile.dataset.level));
@@ -58,18 +56,34 @@
     if (el && el.textContent !== String(value)) el.textContent = value;
   };
 
+  /* ---------- full screen ---------- */
+
+  // The browser's Fullscreen API: show just the game (.app) on the whole screen.
+  UI.prototype.toggleFullscreen = function () {
+    const app = document.querySelector('.app');
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (app.requestFullscreen) app.requestFullscreen();
+  };
+
   /* ---------- score bar (called every frame) ---------- */
 
   UI.prototype.hud = function (info) {
     this.text('title', info.title);
     this.text('name', info.name);
+    this.text('pairs', info.pairs);
+    this.text('moves', info.moves);
+    this.text('time', info.time);
     this.text('score', info.score);
     this.text('best', info.best);
-    this.text('apples', info.apples);
     if (info.paused) this.text('pause', 'Resume');
     else this.text('pause', 'Pause');
+    if (document.fullscreenElement) this.text('fullscreen', 'Exit full screen');
+    else this.text('fullscreen', 'Full screen');
     this.pauseBtn.disabled = !info.canPause;
     this.bar.style.width = Math.min(100, info.progress * 100) + '%';
+    // the time turns red in the last 10 seconds
+    if (info.timeLow) this.timeBox.classList.add('is-low');
+    else this.timeBox.classList.remove('is-low');
   };
 
   /* ---------- overlay screens ---------- */
@@ -82,19 +96,17 @@
     this.overlay.hidden = state === 'playing';
 
     const level = game.level;
-    const endless = game.mode === 'endless';
 
     if (state === 'menu') {
-      if (game.progress.endless > 0) this.text('menu-best', 'Best endless score: ' + game.progress.endless);
-      else this.text('menu-best', 'Ten levels, a creators’ level and endless mode.');
+      const total = game.campaignTotal();
+      if (total > 0) this.text('menu-best', 'Total of your best scores: ' + total);
+      else this.text('menu-best', 'Animals, food, places, shapes, letters, and a creators’ level.');
     }
 
     if (state === 'levels') this.renderLevels(game);
-    if (state === 'skins') this.renderSkins(game);
 
     if (state === 'ready') {
-      if (endless) this.text('ready-title', 'Endless');
-      else this.text('ready-title', level.title() + ' · ' + level.name);
+      this.text('ready-title', level.title() + ' · ' + level.name);
       this.text('ready-goal', level.goal());
     }
 
@@ -106,19 +118,14 @@
 
       let note = 'Best: ' + game.bestScore() + '. ';
       if (game.newBest) note = 'New best! ';
-      this.text('cleared-note', note + 'Includes a ' + Game.CLEAR_BONUS + ' point bonus.');
+      note += game.moves + ' moves, ' + game.timeBonus + ' points time bonus.';
+      this.text('cleared-note', note);
       this.screens.cleared.querySelector('[data-action="next"]').hidden = last;
     }
 
     if (state === 'over') {
       this.text('over-score', game.score);
-      let note = '';
-      if (game.newBest) note = 'New best score! ';
-      if (endless) note += game.eaten + ' apples eaten.';
-      else note += game.eaten + ' of ' + level.target + ' apples.';
-      this.text('over-note', note);
-      if (endless) this.text('over-back', 'Menu');
-      else this.text('over-back', 'All levels');
+      this.text('over-note', 'You found ' + game.matches + ' of ' + level.pairs + ' pairs.');
     }
 
     // Put keyboard focus on the main button so Enter and Space work straight away.
@@ -137,16 +144,17 @@
       const n = level.number;
       const best = game.progress.best[n];
       const open = game.isUnlocked(n);
+      const creators = level instanceof CreatorsLevel;
 
       let classes = 'tile';
       if (best) classes += ' is-done';
       if (!open) classes += ' is-locked';
-      if (level.creators) classes += ' is-creators';
+      if (creators) classes += ' is-creators';
 
       let label = n;
-      if (level.creators) label = icon('star') + ' ' + level.title();
+      if (creators) label = icon('star') + ' ' + level.title();
 
-      let status = 'new';
+      let status = level.cols + ' × ' + level.rows;
       if (best) status = icon('check') + best;
       else if (!open) status = icon('lock');
 
@@ -156,7 +164,7 @@
     }
     this.grid.innerHTML = html;
 
-    this.text('levels-total', 'Campaign total ' + game.campaignTotal());
+    this.text('levels-total', 'Total ' + game.campaignTotal());
     this.describeLevel(game.selected);
   };
 
@@ -170,30 +178,13 @@
   UI.prototype.describeLevel = function (n) {
     const level = LEVELS[n - 1];
     const best = this.game.progress.best[n];
-    let text = n + '. ' + level.name + ' — ';
-    if (level.creators) text = level.name + ' — ';
+    let text = level.title() + ': ' + level.name + ' — ';
+    if (level instanceof CreatorsLevel) text = level.title() + ' — ';
 
     if (!this.game.isUnlocked(n)) text += 'clear level ' + (n - 1) + ' to unlock';
     else if (best) text += 'best ' + best;
-    else text += level.target + ' apples';
+    else text += level.pairs + ' pairs, ' + level.time + ' seconds';
     this.detail.textContent = text;
-  };
-
-  /* ---------- skin picker ---------- */
-
-  UI.prototype.renderSkins = function (game) {
-    const current = game.skin();
-    let html = '';
-    for (let i = 0; i < Skin.LIST.length; i++) {
-      const skin = Skin.LIST[i];
-      let classes = 'skin';
-      if (skin === current) classes += ' is-on';
-      html += '<button type="button" class="' + classes + '" data-skin="' + i + '">' +
-        '<span class="skin-bar" style="background:' + skin.swatch() + '"></span>' +
-        '<span class="skin-name">' + skin.name + '</span></button>';
-    }
-    this.skinGrid.innerHTML = html;
-    this.text('skin-name', current.name);
   };
 
   global.UI = UI;

@@ -9,27 +9,16 @@
     Child.prototype.constructor = Child;
   }
 
-  // Returns the constructor names along an object's prototype chain,
-  // for example ["GoldenApple", "Apple", "Entity", "Object"].
-  function chainOf(obj) {
-    const names = [];
-    let proto = Object.getPrototypeOf(obj);
-    while (proto !== null) {
-      names.push(proto.constructor.name);
-      proto = Object.getPrototypeOf(proto);
+  // Mixes a list into a random order (the Fisher-Yates shuffle):
+  // go from the end, and swap each item with a random one before it.
+  function shuffle(list) {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = list[i];
+      list[i] = list[j];
+      list[j] = temp;
     }
-    return names;
-  }
-
-  // A random item from a list.
-  function pick(list) {
-    const index = Math.floor(Math.random() * list.length);
-    return list[index];
-  }
-
-  // A value part-way between a and b. t = 0 gives a, t = 1 gives b.
-  function lerp(a, b, t) {
-    return a + (b - a) * t;
+    return list;
   }
 
   // Makes a rectangle path with rounded corners of radius r.
@@ -66,53 +55,11 @@
     }
   }
 
-  /* ---------- Vec: a grid position (or a direction, when used as a step) ---------- */
-
-  function Vec(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-
-  Vec.prototype.add = function (v) {
-    return new Vec(this.x + v.x, this.y + v.y);
-  };
-
-  Vec.prototype.equals = function (v) {
-    return v.x === this.x && v.y === this.y;
-  };
-
-  Vec.prototype.isOpposite = function (v) {
-    return this.x === -v.x && this.y === -v.y;
-  };
-
-  // A text id like "4,10", used as a key in an object.
-  Vec.prototype.key = function () {
-    return this.x + ',' + this.y;
-  };
-
-  // How many steps apart two cells are (no diagonals).
-  Vec.prototype.distance = function (v) {
-    return Math.abs(this.x - v.x) + Math.abs(this.y - v.y);
-  };
-
-  // The four directions.
-  const Dir = {
-    UP: new Vec(0, -1),
-    RIGHT: new Vec(1, 0),
-    DOWN: new Vec(0, 1),
-    LEFT: new Vec(-1, 0)
-  };
-
   global.Utils = {
     extend: extend,
-    chainOf: chainOf,
-    pick: pick,
-    lerp: lerp,
+    shuffle: shuffle,
     roundRect: roundRect,
     loadData: loadData,
     saveData: saveData
   };
-  global.Vec = Vec;
-  global.Dir = Dir;
-  global.DIRS = [Dir.UP, Dir.RIGHT, Dir.DOWN, Dir.LEFT];
 })(window);
