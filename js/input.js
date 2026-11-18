@@ -7,15 +7,18 @@
   // on('flip', fn) saves fn under the name 'flip'.
   // emit('flip', data) calls every saved fn for 'flip' with that data.
 
+  // It triggers an event 
   function Emitter() {
     this.handlers = {};
   }
 
+  // Game turned on and ready to play
   Emitter.prototype.on = function (name, fn) {
     if (!this.handlers[name]) this.handlers[name] = [];
     this.handlers[name].push(fn);
   };
 
+  // Pass me the data of what to do?
   Emitter.prototype.emit = function (name, data) {
     const list = this.handlers[name];
     if (!list) return;
@@ -24,6 +27,7 @@
 
   /* ---------- Input ---------- */
 
+  
   function Input(surface) {
     Emitter.call(this);
     this.surface = surface; // the board element
@@ -33,10 +37,10 @@
 
   // Arrow functions are used for the listeners so that `this` still means the Input.
   Input.prototype.bind = function () {
-    window.addEventListener('keydown', (e) => this.onKey(e));
-    this.surface.addEventListener('mousemove', (e) => this.emit('hover', this.boardPoint(e)));
-    this.surface.addEventListener('mousedown', (e) => this.onMouseDown(e));
-    this.surface.addEventListener('touchstart', (e) => this.onTouch(e), { passive: false });
+    window.addEventListener('keydown', (e) => this.onKey(e)); // keyboard
+    this.surface.addEventListener('mousemove', (e) => this.emit('hover', this.boardPoint(e))); // mouse
+    this.surface.addEventListener('mousedown', (e) => this.onMouseDown(e)); // scroll
+    this.surface.addEventListener('touchstart', (e) => this.onTouch(e), { passive: false }); // touch
   };
 
   // Where the mouse or finger is, as a fraction of the board (0..1 across and down).
@@ -61,11 +65,14 @@
     this.emit('click', this.boardPoint(e.changedTouches[0]));
   };
 
+  // Pressing any key on the keyboard will start the game
   Input.prototype.onKey = function (e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.repeat) return; // ignore a key held down
 
     // A focused button already handles Enter and Space by itself.
+    // Moves defined for keys on keyboard to perform an action.
+    // What the key is defined in Utils and ui
     const onButton = e.target.tagName === 'BUTTON';
     const key = e.code;
 
