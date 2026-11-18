@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1e2429">
+  <title>Snake</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <h1>Snake</h1>
+      <p>Project 17 &middot; canvas game built with constructor functions and prototypes</p>
+    </header>
+
+    <main class="layout">
+      <section class="play" aria-label="Game">
+        <div class="hud">
+          <div class="hud-level">
+            <strong data-field="title">Level 1</strong>
+            <span data-field="name">First bite</span>
+          </div>
+          <dl class="hud-stats">
+            <div><dt>Apples</dt><dd data-field="apples">0 / 6</dd></div>
+            <div><dt>Score</dt><dd data-field="score">0</dd></div>
+            <div><dt>Best</dt><dd data-field="best">0</dd></div>
+          </dl>
+          <button id="hud-pause" class="btn btn-small" type="button" data-action="pause" data-field="pause" disabled>Pause</button>
+        </div>
+        <div class="meter"><div id="hud-progress" class="meter-fill"></div></div>
+
+        <div class="board">
+          <canvas id="board" aria-label="Game board. Steer with the arrow keys or WASD."></canvas>
+
+          <div id="overlay" class="overlay">
+            <section class="screen" data-screen="menu">
+              <h2 class="big">Snake</h2>
+              <p class="sub" data-field="menu-best">Ten levels, one endless mode.</p>
+              <div class="stack">
+                <button class="btn btn-primary" type="button" data-action="campaign" data-primary>Play levels</button>
+                <button class="btn" type="button" data-action="endless">Endless</button>
+              </div>
+              <p class="hint">Arrow keys or WASD to steer &middot; swipe on a phone</p>
+            </section>
+
+            <section class="screen screen-levels" data-screen="levels" hidden>
+              <div class="levels-head">
+                <h2>Choose a level</h2>
+                <span data-field="levels-total"></span>
+              </div>
+              <div class="levels-foot">
+                <div id="level-grid" class="tiles"></div>
+                <p id="level-detail" class="detail"></p>
+                <button class="btn" type="button" data-action="menu">Back</button>
+              </div>
+            </section>
+
+            <section class="screen screen-ready" data-screen="ready" hidden>
+              <div class="note-card">
+                <h2 data-field="ready-title"></h2>
+                <p data-field="ready-goal"></p>
+                <p class="hint">Press an arrow key, click or swipe to start</p>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="paused" hidden>
+              <h2 class="big">Paused</h2>
+              <div class="stack">
+                <button class="btn btn-primary" type="button" data-action="resume" data-primary>Resume</button>
+                <button class="btn" type="button" data-action="restart">Restart</button>
+                <button class="btn" type="button" data-action="menu">Quit to menu</button>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="cleared" hidden>
+              <h2 data-field="cleared-title">Level cleared</h2>
+              <p class="score-big" data-field="cleared-score">0</p>
+              <p class="sub" data-field="cleared-note"></p>
+              <div class="stack">
+                <button class="btn btn-primary" type="button" data-action="next" data-primary>Next level</button>
+                <button class="btn" type="button" data-action="restart">Play again</button>
+                <button class="btn" type="button" data-action="levels">All levels</button>
+              </div>
+            </section>
+
+            <section class="screen screen-over" data-screen="over" hidden>
+              <h2>Crashed</h2>
+              <p class="score-big" data-field="over-score">0</p>
+              <p class="sub" data-field="over-note"></p>
+              <div class="stack">
+                <button class="btn btn-primary" type="button" data-action="restart" data-primary>Try again</button>
+                <button class="btn" type="button" data-action="back" data-field="over-back">All levels</button>
+              </div>
+              <p class="hint">Enter or R to retry</p>
+            </section>
+          </div>
+        </div>
+
+        <div id="pad" class="pad" aria-hidden="true">
+          <button type="button" tabindex="-1" data-dir="UP" class="pad-up"><i></i></button>
+          <button type="button" tabindex="-1" data-dir="LEFT" class="pad-left"><i></i></button>
+          <button type="button" tabindex="-1" data-dir="RIGHT" class="pad-right"><i></i></button>
+          <button type="button" tabindex="-1" data-dir="DOWN" class="pad-down"><i></i></button>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <h3>Controls</h3>
+          <ul class="keys">
+            <li><span><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> or <kbd>WASD</kbd></span><span>Steer</span></li>
+            <li><span>Click the board</span><span>Turn towards the click</span></li>
+            <li><span><kbd>Space</kbd> <kbd>P</kbd></span><span>Pause</span></li>
+            <li><span><kbd>R</kbd></span><span>Restart level</span></li>
+            <li><span><kbd>Esc</kbd></span><span>Back</span></li>
+            <li><span>Swipe or on-screen arrows</span><span>Touch</span></li>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <h3>On the board</h3>
+          <ul class="legend">
+            <li><i class="ico ico-apple"></i><span><b>Apple</b> +10, counts toward the goal</span></li>
+            <li><i class="ico ico-gold"></i><span><b>Golden apple</b> +50, gone after 6 seconds</span></li>
+            <li><i class="ico ico-wall"></i><span><b>Wall</b></span></li>
+            <li><i class="ico ico-mover"></i><span><b>Moving wall</b> slides back and forth</span></li>
+            <li><i class="ico ico-portal"></i><span><b>Portal</b> takes you to the same colour</span></li>
+            <li><i class="ico ico-edge"></i><span><b>Dashed edge</b> wraps to the other side</span></li>
+          </ul>
+        </section>
+
+        <details class="panel">
+          <summary>How it's built</summary>
+          <p>Each object is made with a constructor function and inherits methods through its prototype chain:</p>
+          <ul id="chains" class="chains"></ul>
+        </details>
+      </aside>
+    </main>
+
+    <footer class="team">
+      <h3>Team</h3>
+      <ul>
+        <li>Krishna Saathwik Adurthi <span>SE24UMCS005</span></li>
+        <li>Manan Gupta <span>SE24UMCS007</span></li>
+        <li>Taran Reddy Rondla <span>SE24UMCS024</span></li>
+        <li>Ajeya Kumara Karthikeya Bandarupalli <span>SE24UMCS038</span></li>
+        <li>Tanish Reddy Banswada <span>SE24UMCS055</span></li>
+        <li>Sai Ashish Mallipudi <span>SE24UARI125</span></li>
+      </ul>
+    </footer>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
