@@ -9,6 +9,8 @@
 </head>
 <body>
   <!-- Icon set: each <symbol> is drawn with <svg><use href="#i-name"/></svg> -->
+  <!-- Icons -->
+  <!-- svg (scalable vector graph): Code for an image -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
@@ -34,6 +36,7 @@
     </defs>
   </svg>
 
+  <!-- Header of the home page -->
   <div class="app">
     <header class="top">
       <h1>Memory Cards</h1>
@@ -43,28 +46,29 @@
           <span data-field="name">First flip</span>
         </div>
         <dl class="hud-stats">
-          <div><dt><svg class="icon"><use href="#i-cards"/></svg>Pairs</dt><dd data-field="pairs">0 / 3</dd></div>
-          <div><dt><svg class="icon"><use href="#i-steps"/></svg>Moves</dt><dd data-field="moves">0</dd></div>
-          <div id="hud-time"><dt><svg class="icon"><use href="#i-clock"/></svg>Time</dt><dd data-field="time">40</dd></div>
-          <div><dt><svg class="icon"><use href="#i-star"/></svg>Score</dt><dd data-field="score">0</dd></div>
-          <div><dt><svg class="icon"><use href="#i-trophy"/></svg>Best</dt><dd data-field="best">0</dd></div>
+          <div><dt><svg class="icon"><use href="#i-cards"/></svg>Pairs</dt><dd data-field="pairs">0 / 3</dd></div> <!-- Pairs -->
+          <div><dt><svg class="icon"><use href="#i-steps"/></svg>Moves</dt><dd data-field="moves">0</dd></div> <!-- Moves -->
+          <div id="hud-time"><dt><svg class="icon"><use href="#i-clock"/></svg>Time</dt><dd data-field="time">40</dd></div> <!-- Time -->
+          <div><dt><svg class="icon"><use href="#i-star"/></svg>Score</dt><dd data-field="score">0</dd></div> <!-- Score -->
+          <div><dt><svg class="icon"><use href="#i-trophy"/></svg>Best</dt><dd data-field="best">0</dd></div> <!-- Best -->
         </dl>
       </div>
       <div class="top-buttons">
-        <button id="hud-pause" class="btn btn-small btn-icon" type="button" data-action="pause" disabled aria-label="Pause">
+        <button id="hud-pause" class="btn btn-small btn-icon" type="button" data-action="pause" disabled aria-label="Pause"> <!-- Pause Button -->
           <svg class="icon"><use href="#i-pause"/></svg><span data-field="pause">Pause</span>
         </button>
-        <button class="btn btn-small btn-icon" type="button" data-action="fullscreen" aria-label="Full screen">
+        <button class="btn btn-small btn-icon" type="button" data-action="fullscreen" aria-label="Full screen"> <!-- Full screen button -->
           <svg class="icon"><use href="#i-expand"/></svg><span data-field="fullscreen">Full screen</span>
         </button>
       </div>
     </header>
-    <div class="meter"><div id="hud-progress" class="meter-fill"></div></div>
+    <div class="meter"><div id="hud-progress" class="meter-fill"></div></div> <!-- Progress Bar -->
 
     <main class="stage" aria-label="Game">
         <div class="board">
-          <canvas id="board" aria-label="Game board. Click a card, or use the arrow keys and Enter."></canvas>
+          <canvas id="board" aria-label="Game board. Click a card, or use the arrow keys and Enter."></canvas> <!-- Game Board -->
 
+          <!-- Middle part in the Start Screen -->
           <div id="overlay" class="overlay">
             <section class="screen" data-screen="menu">
               <h2 class="big">Memory Cards</h2>
@@ -75,6 +79,7 @@
               <p class="hint">Turn over two cards at a time and find every pair before the time runs out.</p>
             </section>
 
+            <!-- Choose a level in start screen-->
             <section class="screen screen-levels" data-screen="levels" hidden>
               <div class="levels-head">
                 <h2>Choose a level</h2>
@@ -83,10 +88,11 @@
               <div class="levels-foot">
                 <div id="level-grid" class="tiles"></div>
                 <p id="level-detail" class="detail"></p>
-                <button class="btn" type="button" data-action="menu"><svg class="icon"><use href="#i-back"/></svg>Back</button>
+                <button class="btn" type="button" data-action="menu"><svg class="icon"><use href="#i-back"/></svg>Back</button> <!-- Back Button -->
               </div>
             </section>
 
+            <!-- Screen when we select a level -->
             <section class="screen screen-ready" data-screen="ready" hidden>
               <div class="note-card">
                 <h2 data-field="ready-title"></h2>
@@ -95,6 +101,7 @@
               </div>
             </section>
 
+            <!-- Paused Screen -->
             <section class="screen" data-screen="paused" hidden>
               <h2 class="big">Paused</h2>
               <div class="stack">
@@ -104,6 +111,7 @@
               </div>
             </section>
 
+            <!-- After clearing the game board -->
             <section class="screen" data-screen="cleared" hidden>
               <h2 data-field="cleared-title">Level cleared</h2>
               <p class="score-big" data-field="cleared-score">0</p>
@@ -115,6 +123,7 @@
               </div>
             </section>
 
+            <!-- If u run out of time -->
             <section class="screen screen-over" data-screen="over" hidden>
               <h2>Time's up</h2>
               <p class="score-big" data-field="over-score">0</p>
@@ -131,6 +140,7 @@
     <p class="scroll-hint">Scroll down for controls, the cards and the team</p>
   </div>
 
+  <!-- Controls Section -->
   <section class="info">
         <section class="panel">
           <h3><svg class="icon"><use href="#i-keyboard"/></svg>Controls</h3>
@@ -146,6 +156,7 @@
           </ul>
         </section>
 
+        <!-- Points Section -->
         <section class="panel">
           <h3><svg class="icon"><use href="#i-map"/></svg>The cards</h3>
           <ul class="legend">
