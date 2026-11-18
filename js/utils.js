@@ -9,62 +9,65 @@
     Child.prototype.constructor = Child;
   }
 
-  // Returns the constructor names along an object's prototype chain.
+  // Returns the constructor names along an object's prototype chain,
+  // for example ["GoldenApple", "Apple", "Entity", "Object"].
   function chainOf(obj) {
     const names = [];
     let proto = Object.getPrototypeOf(obj);
-    while (proto) {
-      const own = Object.prototype.hasOwnProperty.call(proto, 'constructor');
-      names.push(own ? proto.constructor.name : '?');
+    while (proto !== null) {
+      names.push(proto.constructor.name);
       proto = Object.getPrototypeOf(proto);
     }
     return names;
   }
 
-  function randInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-
+  // A random item from a list.
   function pick(list) {
-    return list[Math.floor(Math.random() * list.length)];
+    const index = Math.floor(Math.random() * list.length);
+    return list[index];
   }
 
+  // A value part-way between a and b. t = 0 gives a, t = 1 gives b.
   function lerp(a, b, t) {
     return a + (b - a) * t;
   }
 
-  // Rounded rectangle path. `r` can be one radius or [tl, tr, br, bl].
+  // Makes a rectangle path with rounded corners of radius r.
   function roundRect(ctx, x, y, w, h, r) {
-    const c = Array.isArray(r) ? r : [r, r, r, r];
     ctx.beginPath();
-    ctx.moveTo(x + c[0], y);
-    ctx.arcTo(x + w, y, x + w, y + h, c[1]);
-    ctx.arcTo(x + w, y + h, x, y + h, c[2]);
-    ctx.arcTo(x, y + h, x, y, c[3]);
-    ctx.arcTo(x, y, x + w, y, c[0]);
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
   }
 
-  // localStorage throws in some private windows, so never let it crash the game.
-  const Store = {
-    load(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw ? Object.assign({}, fallback, JSON.parse(raw)) : fallback;
-      } catch (e) {
-        return fallback;
-      }
-    },
-    save(key, value) {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (e) {
-        /* progress just won't be kept */
-      }
+  // Saving and loading progress in the browser.
+  // try/catch: some private windows block localStorage, and the game should still run.
+  function loadData(key, defaults) {
+    try {
+      const text = localStorage.getItem(key);
+      if (!text) return defaults;
+      const saved = JSON.parse(text);
+      // start from the defaults, then copy in whatever was saved
+      for (const name in saved) defaults[name] = saved[name];
+      return defaults;
+    } catch (e) {
+      return defaults;
     }
-  };
+  }
 
-  // A grid position (or a direction, when used as a step).
+  function saveData(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      // progress just won't be kept
+    }
+  }
+
+  /* ---------- Vec: a grid position (or a direction, when used as a step) ---------- */
+
   function Vec(x, y) {
     this.x = x;
     this.y = y;
@@ -75,35 +78,40 @@
   };
 
   Vec.prototype.equals = function (v) {
-    return !!v && v.x === this.x && v.y === this.y;
+    return v.x === this.x && v.y === this.y;
   };
 
   Vec.prototype.isOpposite = function (v) {
     return this.x === -v.x && this.y === -v.y;
   };
 
-  Vec.prototype.clone = function () {
-    return new Vec(this.x, this.y);
-  };
-
-  // A text id like "4,10", handy as an object key.
+  // A text id like "4,10", used as a key in an object.
   Vec.prototype.key = function () {
     return this.x + ',' + this.y;
   };
 
+  // How many steps apart two cells are (no diagonals).
   Vec.prototype.distance = function (v) {
     return Math.abs(this.x - v.x) + Math.abs(this.y - v.y);
   };
 
+  // The four directions.
   const Dir = {
-    UP: Object.freeze(new Vec(0, -1)),
-    RIGHT: Object.freeze(new Vec(1, 0)),
-    DOWN: Object.freeze(new Vec(0, 1)),
-    LEFT: Object.freeze(new Vec(-1, 0))
+    UP: new Vec(0, -1),
+    RIGHT: new Vec(1, 0),
+    DOWN: new Vec(0, 1),
+    LEFT: new Vec(-1, 0)
   };
-  Object.freeze(Dir);
 
-  global.Utils = { extend, chainOf, randInt, pick, lerp, roundRect, Store };
+  global.Utils = {
+    extend: extend,
+    chainOf: chainOf,
+    pick: pick,
+    lerp: lerp,
+    roundRect: roundRect,
+    loadData: loadData,
+    saveData: saveData
+  };
   global.Vec = Vec;
   global.Dir = Dir;
   global.DIRS = [Dir.UP, Dir.RIGHT, Dir.DOWN, Dir.LEFT];

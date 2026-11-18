@@ -1,8 +1,8 @@
-// The HTML side: score bar, overlay screens and the level picker.
+// The HTML side: score bar, overlay screens, level picker and skin picker.
 (function (global) {
   'use strict';
 
-  // Markup for one icon from the <svg> icon set in index.html.
+  // HTML for one icon from the <svg> icon set in index.html.
   function icon(name) {
     return '<svg class="icon"><use href="#i-' + name + '"/></svg>';
   }
@@ -16,23 +16,26 @@
     this.pauseBtn = document.getElementById('hud-pause');
     this.game = null;
 
-    // <section data-screen="menu"> etc.
+    // Every <section data-screen="..."> by name, e.g. this.screens.menu
     this.screens = {};
-    document.querySelectorAll('[data-screen]').forEach((el) => {
-      this.screens[el.dataset.screen] = el;
-    });
+    const screenEls = document.querySelectorAll('[data-screen]');
+    for (let i = 0; i < screenEls.length; i++) {
+      this.screens[screenEls[i].dataset.screen] = screenEls[i];
+    }
 
-    // Any element with data-field="name" can be filled in with text('name', ...)
+    // Every element with data-field="..." by name, filled in with text(name, value)
     this.fields = {};
-    document.querySelectorAll('[data-field]').forEach((el) => {
-      this.fields[el.dataset.field] = el;
-    });
+    const fieldEls = document.querySelectorAll('[data-field]');
+    for (let i = 0; i < fieldEls.length; i++) {
+      this.fields[fieldEls[i].dataset.field] = fieldEls[i];
+    }
   }
 
   UI.prototype.connect = function (game) {
     this.game = game;
 
-    // One click handler for every button: level tiles, skins and data-action buttons.
+    // One click handler for every button on the page.
+    // closest() finds the button even if you clicked the icon inside it.
     document.addEventListener('click', (e) => {
       const tile = e.target.closest('[data-level]');
       const skin = e.target.closest('[data-skin]');
@@ -42,14 +45,11 @@
       else if (button) game.action(button.dataset.action);
     });
 
-    // Hovering or tabbing onto a level tile shows that map behind the picker.
-    const preview = (e) => {
+    // Moving the mouse over a level tile shows that map behind the picker.
+    this.grid.addEventListener('mouseover', (e) => {
       const tile = e.target.closest('[data-level]');
       if (tile) this.previewLevel(Number(tile.dataset.level));
-    };
-    this.grid.addEventListener('pointerover', preview);
-    this.grid.addEventListener('focusin', preview);
-    this.grid.addEventListener('pointerleave', () => this.previewLevel(game.selected));
+    });
   };
 
   // Sets the text of a data-field element (only touches the page if it changed).
@@ -66,100 +66,98 @@
     this.text('score', info.score);
     this.text('best', info.best);
     this.text('apples', info.apples);
-    this.text('pause', info.paused ? 'Resume' : 'Pause');
+    if (info.paused) this.text('pause', 'Resume');
+    else this.text('pause', 'Pause');
     this.pauseBtn.disabled = !info.canPause;
-    this.bar.style.transform = 'scaleX(' + Math.min(1, info.progress) + ')';
+    this.bar.style.width = Math.min(100, info.progress * 100) + '%';
   };
 
   /* ---------- overlay screens ---------- */
 
   UI.prototype.show = function (state, game) {
     // show only the screen for this state (there is none while playing)
-    Object.keys(this.screens).forEach((name) => {
+    for (const name in this.screens) {
       this.screens[name].hidden = name !== state;
-    });
+    }
     this.overlay.hidden = state === 'playing';
 
     const level = game.level;
     const endless = game.mode === 'endless';
 
     if (state === 'menu') {
-      this.text('menu-best', game.progress.endless
-        ? 'Best endless score: ' + game.progress.endless
-        : 'Ten levels, a creators’ level and endless mode.');
+      if (game.progress.endless > 0) this.text('menu-best', 'Best endless score: ' + game.progress.endless);
+      else this.text('menu-best', 'Ten levels, a creators’ level and endless mode.');
     }
 
-    if (state === 'levels') {
-      this.renderLevels(game);
-    }
-
-    if (state === 'skins') {
-      this.renderSkins(game);
-    }
+    if (state === 'levels') this.renderLevels(game);
+    if (state === 'skins') this.renderSkins(game);
 
     if (state === 'ready') {
-      this.text('ready-title', endless ? 'Endless' : level.title() + ' · ' + level.name);
+      if (endless) this.text('ready-title', 'Endless');
+      else this.text('ready-title', level.title() + ' · ' + level.name);
       this.text('ready-goal', level.goal());
     }
 
     if (state === 'cleared') {
       const last = game.isLastLevel();
-      this.text('cleared-title', last ? 'You beat the creators’ level!' : level.title() + ' cleared');
+      if (last) this.text('cleared-title', 'You beat the creators’ level!');
+      else this.text('cleared-title', level.title() + ' cleared');
       this.text('cleared-score', game.score);
-      this.text('cleared-note', (game.newBest ? 'New best! ' : 'Best: ' + game.bestScore() + '. ') +
-        'Includes a ' + Game.CLEAR_BONUS + ' point bonus.');
+
+      let note = 'Best: ' + game.bestScore() + '. ';
+      if (game.newBest) note = 'New best! ';
+      this.text('cleared-note', note + 'Includes a ' + Game.CLEAR_BONUS + ' point bonus.');
       this.screens.cleared.querySelector('[data-action="next"]').hidden = last;
     }
 
     if (state === 'over') {
       this.text('over-score', game.score);
-      this.text('over-note', (game.newBest ? 'New best score! ' : '') +
-        (endless ? game.eaten + ' apples eaten.' : game.eaten + ' of ' + level.target + ' apples.'));
-      this.text('over-back', endless ? 'Menu' : 'All levels');
+      let note = '';
+      if (game.newBest) note = 'New best score! ';
+      if (endless) note += game.eaten + ' apples eaten.';
+      else note += game.eaten + ' of ' + level.target + ' apples.';
+      this.text('over-note', note);
+      if (endless) this.text('over-back', 'Menu');
+      else this.text('over-back', 'All levels');
     }
 
-    // Focus the main button so Enter / Space work straight away.
-    const main = state === 'levels'
-      ? this.grid.querySelector('[data-level="' + game.selected + '"]')
-      : this.screens[state] && this.screens[state].querySelector('[data-primary]');
+    // Put keyboard focus on the main button so Enter and Space work straight away.
+    let main = null;
+    if (state === 'levels') main = this.grid.querySelector('[data-level="' + game.selected + '"]');
+    else if (this.screens[state]) main = this.screens[state].querySelector('[data-primary]');
     if (main) main.focus({ preventScroll: true });
   };
 
   /* ---------- level picker ---------- */
 
   UI.prototype.renderLevels = function (game) {
-    this.grid.innerHTML = LEVELS.map((level) => {
+    let html = '';
+    for (let i = 0; i < LEVELS.length; i++) {
+      const level = LEVELS[i];
       const n = level.number;
       const best = game.progress.best[n];
       const open = game.isUnlocked(n);
-      const status = best ? icon('check') + best : open ? 'new' : icon('lock');
-      const classes = 'tile' + (best ? ' is-done' : '') + (open ? '' : ' is-locked') +
-        (level.creators ? ' is-creators' : '');
-      const label = level.creators ? icon('star') + ' ' + level.title() : n;
-      return '<button type="button" class="' + classes + '" data-level="' + n + '"' +
-        (open ? '' : ' aria-label="' + level.title() + ', locked"') + '>' +
+
+      let classes = 'tile';
+      if (best) classes += ' is-done';
+      if (!open) classes += ' is-locked';
+      if (level.creators) classes += ' is-creators';
+
+      let label = n;
+      if (level.creators) label = icon('star') + ' ' + level.title();
+
+      let status = 'new';
+      if (best) status = icon('check') + best;
+      else if (!open) status = icon('lock');
+
+      html += '<button type="button" class="' + classes + '" data-level="' + n + '">' +
         '<span class="tile-num">' + label + '</span>' +
         '<span class="tile-meta">' + status + '</span></button>';
-    }).join('');
+    }
+    this.grid.innerHTML = html;
 
     this.text('levels-total', 'Campaign total ' + game.campaignTotal());
     this.describeLevel(game.selected);
-  };
-
-  /* ---------- skin picker ---------- */
-
-  UI.prototype.renderSkins = function (game) {
-    const current = game.skin();
-    this.skinGrid.innerHTML = Skin.LIST.map((skin, i) => {
-      const on = skin === current;
-      return '<button type="button" class="skin' + (on ? ' is-on' : '') + '" data-skin="' + i + '"' +
-        ' aria-pressed="' + on + '">' +
-        '<span class="skin-bar" style="background:' + skin.swatch() + '"></span>' +
-        '<span class="skin-name">' + skin.name + '</span></button>';
-    }).join('');
-    this.text('skin-name', current.name);
-    const on = this.skinGrid.querySelector('.is-on');
-    if (on && this.overlay.contains(document.activeElement)) on.focus({ preventScroll: true });
   };
 
   UI.prototype.previewLevel = function (n) {
@@ -172,11 +170,30 @@
   UI.prototype.describeLevel = function (n) {
     const level = LEVELS[n - 1];
     const best = this.game.progress.best[n];
-    let text = (level.creators ? '' : n + '. ') + level.name + ' — ';
+    let text = n + '. ' + level.name + ' — ';
+    if (level.creators) text = level.name + ' — ';
+
     if (!this.game.isUnlocked(n)) text += 'clear level ' + (n - 1) + ' to unlock';
     else if (best) text += 'best ' + best;
     else text += level.target + ' apples';
     this.detail.textContent = text;
+  };
+
+  /* ---------- skin picker ---------- */
+
+  UI.prototype.renderSkins = function (game) {
+    const current = game.skin();
+    let html = '';
+    for (let i = 0; i < Skin.LIST.length; i++) {
+      const skin = Skin.LIST[i];
+      let classes = 'skin';
+      if (skin === current) classes += ' is-on';
+      html += '<button type="button" class="' + classes + '" data-skin="' + i + '">' +
+        '<span class="skin-bar" style="background:' + skin.swatch() + '"></span>' +
+        '<span class="skin-name">' + skin.name + '</span></button>';
+    }
+    this.skinGrid.innerHTML = html;
+    this.text('skin-name', current.name);
   };
 
   global.UI = UI;

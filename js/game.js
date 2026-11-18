@@ -2,8 +2,6 @@
 (function (global) {
   'use strict';
 
-  const { pick, Store } = Utils;
-
   // Every screen the game can be on.
   const STATE = {
     MENU: 'menu',
@@ -17,11 +15,12 @@
   };
 
   const SAVE_KEY = 'snake-progress-v2';
-  // Kept close together so the floor stays calm and the objects on it stand out.
-  const BOARD = '#447a44';     // the gaps between floor tiles
-  const TILE = '#4d8b4b';      // grass tiles, two shades
+
+  // Board colours. The two tile shades are close so the floor stays calm.
+  const BOARD = '#447a44';    // the gaps between floor tiles
+  const TILE = '#4d8b4b';     // grass tiles, two shades
   const TILE_ALT = '#51904f';
-  const EDGE = '#bfe6ff'; // colour of open (wrapping) edges
+  const EDGE = '#bfe6ff';     // open (wrapping) edges
 
   function Game(canvas, ui) {
     this.canvas = canvas;
@@ -37,8 +36,8 @@
     this.height = this.rows * this.cell;
     this.scale = 1;
 
-    // Saved between visits: highest unlocked level and best scores.
-    this.progress = Store.load(SAVE_KEY, { unlocked: 1, best: {}, endless: 0, skin: 0 });
+    // Saved between visits: highest unlocked level, best scores and chosen skin.
+    this.progress = Utils.loadData(SAVE_KEY, { unlocked: 1, best: {}, endless: 0, skin: 0 });
 
     this.mode = 'campaign'; // or 'endless'
     this.selected = 1;      // level highlighted in the level picker
@@ -49,22 +48,26 @@
     this.accumulator = 0; // time collected towards the next step
 
     this.input = new Input(canvas.parentElement);
-    this.input.swipeEnabled = () => this.state === STATE.READY || this.state === STATE.PLAYING;
     this.bindInput();
 
-    this.loop = this.loop.bind(this);
-    global.addEventListener('resize', () => this.resize());
+    // Arrow function so `this` still means the game inside the listener.
+    window.addEventListener('resize', () => this.resize());
 
     this.setup(LEVELS[0]);
     this.resize();
     this.setState(STATE.MENU);
   }
 
+  Game.CLEAR_BONUS = 100;
+  Game.WARN_STEPS = 10; // how long a falling wall flashes before it lands
+
   /* ---------- canvas size ---------- */
 
   // Makes the canvas match its size on screen so it stays sharp.
   Game.prototype.resize = function () {
-    const size = Math.round(this.canvas.clientWidth * (global.devicePixelRatio || 1)) || this.width;
+    const pixels = window.devicePixelRatio || 1;
+    let size = Math.round(this.canvas.clientWidth * pixels);
+    if (size === 0) size = this.width;
     this.canvas.width = size;
     this.canvas.height = size;
     this.scale = size / this.width;
@@ -72,28 +75,26 @@
 
   /* ---------- input ---------- */
 
+  // Tells the Input which game method to call for each kind of event.
   Game.prototype.bindInput = function () {
-    const input = this.input;
-    input.on('turn', (dir) => this.turn(dir));
-    input.on('point', (p) => this.turnTowards(p));
-    input.on('confirm', () => this.confirm());
-    input.on('back', () => this.back());
-    input.on('pause', () => this.togglePause());
-    input.on('space', () => {
-      if (this.state === STATE.PLAYING || this.state === STATE.PAUSED) this.togglePause();
-      else this.confirm();
-    });
-    input.on('restart', () => {
+    this.input.on('turn', (dir) => this.turn(dir));
+    this.input.on('point', (p) => this.turnTowards(p));
+    this.input.on('confirm', () => this.confirm());
+    this.input.on('back', () => this.back());
+    this.input.on('pause', () => this.togglePause());
+    this.input.on('space', () => this.space());
+    this.input.on('restart', () => {
       if (this.state !== STATE.MENU && this.state !== STATE.LEVELS) this.restart();
     });
 
     // Pause when the player switches to another window or tab.
-    global.addEventListener('blur', () => {
+    window.addEventListener('blur', () => {
       if (this.state === STATE.PLAYING) this.setState(STATE.PAUSED);
     });
   };
 
   Game.prototype.turn = function (dir) {
+    // On the start screen, the first key starts the level.
     if (this.state === STATE.READY) {
       if (!dir.isOpposite(this.snake.dir)) this.snake.queueTurn(dir);
       this.begin();
@@ -116,51 +117,60 @@
   Game.prototype.turnTowards = function (p) {
     if (this.state !== STATE.READY && this.state !== STATE.PLAYING) return;
     const head = this.snake.head();
-    const dx = p.x * this.cols - (head.x + 0.5);
-    const dy = p.y * this.rows - (head.y + 0.5);
-    const goingSideways = this.snake.nextDir().x !== 0;
-    if (goingSideways) this.turn(dy < 0 ? Dir.UP : Dir.DOWN);
-    else this.turn(dx < 0 ? Dir.LEFT : Dir.RIGHT);
+    const dx = p.x * this.cols - (head.x + 0.5); // how far right of the head
+    const dy = p.y * this.rows - (head.y + 0.5); // how far below the head
+
+    if (this.snake.nextDir().x !== 0) {
+      // moving left or right: a click above turns up, below turns down
+      if (dy < 0) this.turn(Dir.UP);
+      else this.turn(Dir.DOWN);
+    } else {
+      // moving up or down: a click to the left turns left, to the right turns right
+      if (dx < 0) this.turn(Dir.LEFT);
+      else this.turn(Dir.RIGHT);
+    }
   };
 
-  // Called by the buttons on the overlay screens.
+  // Called by the buttons on the overlay screens (their data-action).
   Game.prototype.action = function (name, arg) {
-    switch (name) {
-      case 'campaign':
-      case 'levels': this.showLevels(); break;
-      case 'endless': this.startEndless(); break;
-      case 'skins': this.showSkins(); break;
-      case 'skin': this.setSkin(arg); break;
-      case 'menu': this.setState(STATE.MENU); break;
-      case 'play': this.startLevel(arg); break;
-      case 'preview': this.preview(arg); break;
-      case 'pause':
-      case 'resume': this.togglePause(); break;
-      case 'restart': this.restart(); break;
-      case 'next': this.nextLevel(); break;
-      case 'back': this.back(); break;
-    }
+    if (name === 'campaign' || name === 'levels') this.showLevels();
+    else if (name === 'endless') this.startEndless();
+    else if (name === 'skins') this.showSkins();
+    else if (name === 'skin') this.setSkin(arg);
+    else if (name === 'menu') this.setState(STATE.MENU);
+    else if (name === 'play') this.startLevel(arg);
+    else if (name === 'preview') this.preview(arg);
+    else if (name === 'pause' || name === 'resume') this.togglePause();
+    else if (name === 'restart') this.restart();
+    else if (name === 'next') this.nextLevel();
+    else if (name === 'back') this.back();
   };
 
   // Enter key
   Game.prototype.confirm = function () {
-    switch (this.state) {
-      case STATE.MENU: this.showLevels(); break;
-      case STATE.SKINS: this.setState(STATE.MENU); break;
-      case STATE.LEVELS: this.startLevel(this.selected); break;
-      case STATE.READY: this.begin(); break;
-      case STATE.PAUSED: this.togglePause(); break;
-      // the short wait stops a held key from skipping the result screen
-      case STATE.CLEARED: if (this.stateTime > 0.25) this.nextLevel(); break;
-      case STATE.OVER: if (this.stateTime > 0.25) this.restart(); break;
-    }
+    const s = this.state;
+    // the short wait (stateTime) stops a held key from skipping the result screen
+    if (s === STATE.MENU) this.showLevels();
+    else if (s === STATE.SKINS) this.setState(STATE.MENU);
+    else if (s === STATE.LEVELS) this.startLevel(this.selected);
+    else if (s === STATE.READY) this.begin();
+    else if (s === STATE.PAUSED) this.togglePause();
+    else if (s === STATE.CLEARED && this.stateTime > 0.25) this.nextLevel();
+    else if (s === STATE.OVER && this.stateTime > 0.25) this.restart();
+  };
+
+  // Space bar: pause while playing, otherwise the same as Enter.
+  Game.prototype.space = function () {
+    if (this.state === STATE.PLAYING || this.state === STATE.PAUSED) this.togglePause();
+    else this.confirm();
   };
 
   // Escape key
   Game.prototype.back = function () {
-    if (this.state === STATE.PLAYING || this.state === STATE.PAUSED) this.togglePause();
-    else if (this.state === STATE.LEVELS || this.state === STATE.SKINS || this.mode === 'endless') this.setState(STATE.MENU);
-    else if (this.state !== STATE.MENU) this.showLevels();
+    const s = this.state;
+    if (s === STATE.PLAYING || s === STATE.PAUSED) this.togglePause();
+    else if (s === STATE.LEVELS || s === STATE.SKINS || this.mode === 'endless') this.setState(STATE.MENU);
+    else if (s !== STATE.MENU) this.showLevels();
   };
 
   /* ---------- switching states and levels ---------- */
@@ -168,6 +178,8 @@
   Game.prototype.setState = function (state) {
     this.state = state;
     this.stateTime = 0;
+    // swiping only steers the snake on the start screen and while playing
+    this.input.swipeOn = state === STATE.READY || state === STATE.PLAYING;
     this.ui.show(state, this);
   };
 
@@ -200,14 +212,16 @@
     this.setState(STATE.SKINS);
   };
 
+  // The skin the player chose.
   Game.prototype.skin = function () {
-    return Skin.LIST[this.progress.skin] || Skin.LIST[0];
+    const chosen = Skin.LIST[this.progress.skin];
+    if (chosen) return chosen;
+    return Skin.LIST[0];
   };
 
   Game.prototype.setSkin = function (i) {
-    if (!Skin.LIST[i]) return;
     this.progress.skin = i;
-    Store.save(SAVE_KEY, this.progress);
+    Utils.saveData(SAVE_KEY, this.progress);
     this.snake.skin = this.skin();
     this.ui.renderSkins(this);
   };
@@ -285,21 +299,22 @@
   Game.prototype.clear = function () {
     this.score += Game.CLEAR_BONUS;
     this.saveBest();
+    // unlock the next level
     if (this.level.number === this.progress.unlocked && !this.isLastLevel()) {
       this.progress.unlocked++;
     }
-    Store.save(SAVE_KEY, this.progress);
+    Utils.saveData(SAVE_KEY, this.progress);
     this.burst(this.snake.head(), '#ffffff', 24);
     this.setState(STATE.CLEARED);
   };
-
-  Game.CLEAR_BONUS = 100;
 
   /* ---------- scores ---------- */
 
   Game.prototype.bestScore = function () {
     if (this.mode === 'endless') return this.progress.endless;
-    return this.progress.best[this.level.number] || 0;
+    const best = this.progress.best[this.level.number];
+    if (best) return best;
+    return 0;
   };
 
   Game.prototype.saveBest = function () {
@@ -307,12 +322,16 @@
     if (this.mode === 'endless') this.progress.endless = this.score;
     else this.progress.best[this.level.number] = this.score;
     this.newBest = true;
-    Store.save(SAVE_KEY, this.progress);
+    Utils.saveData(SAVE_KEY, this.progress);
   };
 
+  // All the level best scores added up.
   Game.prototype.campaignTotal = function () {
     let total = 0;
-    LEVELS.forEach((level) => { total += this.progress.best[level.number] || 0; });
+    for (let i = 0; i < LEVELS.length; i++) {
+      const best = this.progress.best[LEVELS[i].number];
+      if (best) total += best;
+    }
     return total;
   };
 
@@ -326,21 +345,41 @@
     return this.solid[p.y * this.cols + p.x];
   };
 
+  // These return the thing on cell p, or null if there is nothing there.
   Game.prototype.moverAt = function (p) {
-    return this.movers.find((m) => m.pos.equals(p));
+    for (let i = 0; i < this.movers.length; i++) {
+      if (this.movers[i].pos.equals(p)) return this.movers[i];
+    }
+    return null;
   };
 
   Game.prototype.portalAt = function (p) {
-    return this.portals.find((m) => m.pos.equals(p));
+    for (let i = 0; i < this.portals.length; i++) {
+      if (this.portals[i].pos.equals(p)) return this.portals[i];
+    }
+    return null;
   };
 
   Game.prototype.appleAt = function (p) {
-    return this.apples.find((a) => a.alive && a.pos.equals(p));
+    for (let i = 0; i < this.apples.length; i++) {
+      if (this.apples[i].alive && this.apples[i].pos.equals(p)) return this.apples[i];
+    }
+    return null;
   };
 
+  Game.prototype.pendingAt = function (p) {
+    for (let i = 0; i < this.pending.length; i++) {
+      if (this.pending[i].pos.equals(p)) return this.pending[i];
+    }
+    return null;
+  };
+
+  // Is the cell completely empty?
   Game.prototype.isFree = function (p) {
-    return !this.wallAt(p) && !this.portalAt(p) && !this.moverAt(p) &&
-      !this.snake.occupies(p) && !this.appleAt(p) && !this.pending.some((w) => w.pos.equals(p));
+    if (this.wallAt(p) || this.moverAt(p) || this.portalAt(p)) return false;
+    if (this.appleAt(p) || this.pendingAt(p)) return false;
+    if (this.snake.occupies(p)) return false;
+    return true;
   };
 
   // The cell you land on when moving one step from `from` in `dir`.
@@ -348,31 +387,46 @@
   Game.prototype.stepFrom = function (from, dir) {
     let p = from.add(dir);
     if (!this.inBounds(p)) {
-      if (!this.level.wrap) return null;
+      if (!this.level.wrap) return null;  // walled edge: crash
+      // open edge: come back on the other side
       p = new Vec((p.x + this.cols) % this.cols, (p.y + this.rows) % this.rows);
     }
     const portal = this.portalAt(p);
-    return portal ? portal.partner.pos : p;
+    if (portal) return portal.partner.pos; // come out of the other portal
+    return p;
   };
 
-  // All free cells the snake can reach (a flood fill from its head),
-  // so an apple never appears somewhere the snake can't get to.
+  // All free cells the snake can reach. It works like spreading paint from the
+  // snake's head (a flood fill): visit a cell, then its four neighbours, and so on.
+  // This way an apple never appears somewhere the snake can't get to.
   Game.prototype.reachableCells = function () {
-    const seen = {};
-    const queue = [this.snake.head()];
+    const seen = {};       // cells already visited, by key "x,y"
+    const toVisit = [this.snake.head()];
     const free = [];
     seen[this.snake.head().key()] = true;
 
-    for (let i = 0; i < queue.length; i++) {
-      DIRS.forEach((dir) => {
-        const next = this.stepFrom(queue[i], dir);
-        if (!next || seen[next.key()] || this.wallAt(next)) return;
+    for (let i = 0; i < toVisit.length; i++) {
+      for (let d = 0; d < DIRS.length; d++) {
+        const next = this.stepFrom(toVisit[i], DIRS[d]);
+        if (next === null || seen[next.key()] || this.wallAt(next)) continue;
         seen[next.key()] = true;
-        queue.push(next);
+        toVisit.push(next);
         if (this.isFree(next)) free.push(next);
-      });
+      }
     }
     return free;
+  };
+
+  // A random free cell that is more than `gap` cells away from the snake's head.
+  Game.prototype.freeCellAway = function (gap) {
+    const head = this.snake.head();
+    const cells = this.reachableCells();
+    const options = [];
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i].distance(head) > gap) options.push(cells[i]);
+    }
+    if (options.length === 0) return null;
+    return Utils.pick(options);
   };
 
   /* ---------- apples, walls and effects ---------- */
@@ -380,20 +434,16 @@
   // Works with any apple constructor: spawn(Apple) or spawn(GoldenApple).
   Game.prototype.spawn = function (AppleType) {
     const free = this.reachableCells();
-    if (!free.length) return;
-    const p = pick(free);
+    if (free.length === 0) return;
+    const p = Utils.pick(free);
     this.apples.push(new AppleType(p.x, p.y));
   };
 
   Game.prototype.hasGolden = function () {
-    return this.apples.some((a) => a instanceof GoldenApple);
-  };
-
-  // A random free cell at least `gap` cells away from the snake's head.
-  Game.prototype.freeCellAway = function (gap) {
-    const head = this.snake.head();
-    const options = this.reachableCells().filter((p) => p.distance(head) > gap);
-    return options.length ? pick(options) : null;
+    for (let i = 0; i < this.apples.length; i++) {
+      if (this.apples[i] instanceof GoldenApple) return true;
+    }
+    return false;
   };
 
   // Endless mode: a wall flashes on a free cell for a few steps, then becomes solid.
@@ -402,34 +452,35 @@
     if (p) this.pending.push({ pos: p, steps: Game.WARN_STEPS });
   };
 
-  Game.WARN_STEPS = 10;
-
-  // Counts down the flashing walls. One only lands when nothing is in its way.
+  // Counts down the flashing walls. One only lands when nothing is on its cell.
   Game.prototype.landWalls = function () {
-    this.pending.forEach((w) => {
+    const stillWaiting = [];
+    for (let i = 0; i < this.pending.length; i++) {
+      const w = this.pending[i];
       w.steps--;
-      if (w.steps > 0 || this.snake.occupies(w.pos) || this.appleAt(w.pos)) return;
-      const wall = new Wall(w.pos.x, w.pos.y);
-      this.walls.push(wall);
-      this.solid[w.pos.y * this.cols + w.pos.x] = wall;
-      this.burst(w.pos, Wall.prototype.colour, 12);
-      w.done = true;
-    });
-    this.pending = this.pending.filter((w) => !w.done);
+      if (w.steps > 0 || this.snake.occupies(w.pos) || this.appleAt(w.pos)) {
+        stillWaiting.push(w);
+      } else {
+        const wall = new Wall(w.pos.x, w.pos.y);
+        this.walls.push(wall);
+        this.solid[w.pos.y * this.cols + w.pos.x] = wall;
+        this.burst(w.pos, Wall.prototype.colour, 12);
+      }
+    }
+    this.pending = stillWaiting;
   };
 
-  // Endless stage 2: a pair of portals far apart from each other.
+  // Endless stage 2: a pair of linked portals.
   Game.prototype.addPortals = function () {
     const a = this.freeCellAway(3);
-    if (!a) return;
-    const far = this.reachableCells().filter((p) => p.distance(a) >= 10 && p.distance(this.snake.head()) > 3);
-    if (!far.length) return;
-    const b = pick(far);
-    const pa = new Portal(a.x, a.y, 1);
-    const pb = new Portal(b.x, b.y, 1);
-    pa.partner = pb;
-    pb.partner = pa;
-    this.portals.push(pa, pb);
+    const b = this.freeCellAway(3);
+    if (!a || !b || a.distance(b) < 6) return; // need two different cells, not too close
+    const first = new Portal(a.x, a.y, 1);
+    const second = new Portal(b.x, b.y, 1);
+    first.partner = second;
+    second.partner = first;
+    this.portals.push(first);
+    this.portals.push(second);
     this.burst(a, Portal.COLOURS[0], 16);
     this.burst(b, Portal.COLOURS[0], 16);
   };
@@ -438,7 +489,9 @@
   Game.prototype.addMover = function () {
     const p = this.freeCellAway(5);
     if (!p) return;
-    this.movers.push(new MovingWall(p.x, p.y, Math.random() < 0.5 ? 'h' : 'v'));
+    let axis = 'h';
+    if (Math.random() < 0.5) axis = 'v';
+    this.movers.push(new MovingWall(p.x, p.y, axis));
     this.burst(p, MovingWall.prototype.colour, 16);
   };
 
@@ -447,6 +500,7 @@
     this.particles.push(new ScorePopup((pos.x + 0.5) * this.cell, pos.y * this.cell, '+' + points));
   };
 
+  // A little explosion of dots on a cell.
   Game.prototype.burst = function (pos, colour, count) {
     const x = (pos.x + 0.5) * this.cell;
     const y = (pos.y + 0.5) * this.cell;
@@ -462,7 +516,7 @@
 
     // Collision detection: edge, wall, moving wall or own body
     const next = this.stepFrom(snake.head(), snake.dir);
-    if (!next || this.wallAt(next) || this.moverAt(next) || snake.hitsSelf(next)) {
+    if (next === null || this.wallAt(next) || this.moverAt(next) || snake.hitsSelf(next)) {
       this.crash();
       return;
     }
@@ -470,16 +524,16 @@
 
     const apple = this.appleAt(next);
     if (apple) this.eatApple(apple);
-    if (this.state !== STATE.PLAYING) return;
+    if (this.state !== STATE.PLAYING) return; // the level may have just ended
 
     // moving walls go at half the snake's speed
     if (this.steps % 2 === 0) this.stepMovers();
-    if (this.pending.length) this.landWalls();
+    if (this.pending.length > 0) this.landWalls();
   };
 
   Game.prototype.eatApple = function (apple) {
     apple.eat(this); // Apple and GoldenApple each know what to do
-    this.apples = this.apples.filter((a) => a.alive);
+    this.removeDead();
     if (!apple.countsToGoal) return;
 
     this.eaten++;
@@ -489,33 +543,57 @@
       return;
     }
     this.spawn(Apple);
+    // sometimes a golden apple appears too
     if (!this.hasGolden() && Math.random() < 0.25) this.spawn(GoldenApple);
     this.interval = this.level.interval(this) / 1000;
   };
 
-  // Moving walls never slide into the snake or the cell it is about to enter.
   Game.prototype.stepMovers = function () {
+    for (let i = 0; i < this.movers.length; i++) this.movers[i].step(this);
+  };
+
+  // Called by MovingWall.step(): can a moving wall go onto cell p?
+  // It never slides into the snake or the cell the snake is about to enter.
+  Game.prototype.moverBlocked = function (p, mover) {
+    if (!this.inBounds(p)) return true;
+    if (this.wallAt(p) || this.portalAt(p) || this.appleAt(p)) return true;
+    if (this.snake.occupies(p)) return true;
     const ahead = this.stepFrom(this.snake.head(), this.snake.nextDir());
-    const isBlocked = (p, self) =>
-      !this.inBounds(p) || this.wallAt(p) || this.portalAt(p) || this.appleAt(p) ||
-      this.snake.occupies(p) || (ahead && p.equals(ahead)) ||
-      this.movers.some((m) => m !== self && m.pos.equals(p));
-    this.movers.forEach((m) => m.step(isBlocked));
+    if (ahead && ahead.equals(p)) return true;
+    const other = this.moverAt(p);
+    if (other && other !== mover) return true;
+    return false;
+  };
+
+  // Removes eaten apples and finished particles from their lists.
+  Game.prototype.removeDead = function () {
+    const apples = [];
+    for (let i = 0; i < this.apples.length; i++) {
+      if (this.apples[i].alive) apples.push(this.apples[i]);
+    }
+    this.apples = apples;
+
+    const particles = [];
+    for (let i = 0; i < this.particles.length; i++) {
+      if (this.particles[i].alive) particles.push(this.particles[i]);
+    }
+    this.particles = particles;
   };
 
   /* ---------- game loop ---------- */
 
   Game.prototype.start = function () {
-    global.requestAnimationFrame(this.loop);
+    requestAnimationFrame((now) => this.loop(now));
   };
 
-  // Runs every frame: update, then draw.
+  // Runs every frame (about 60 times a second): update, then draw.
   Game.prototype.loop = function (now) {
-    const dt = this.lastTime ? Math.min((now - this.lastTime) / 1000, 0.1) : 0;
+    let dt = 0; // seconds since the last frame
+    if (this.lastTime > 0) dt = Math.min((now - this.lastTime) / 1000, 0.1);
     this.lastTime = now;
     this.update(dt);
     this.render();
-    global.requestAnimationFrame(this.loop);
+    requestAnimationFrame((time) => this.loop(time));
   };
 
   Game.prototype.update = function (dt) {
@@ -531,11 +609,13 @@
       }
     }
 
+    // Animations (apple pop-in, portal spin, golden apple timer, particles)
     if (this.state !== STATE.PAUSED) {
-      const all = [this.snake].concat(this.apples, this.portals, this.particles);
-      all.forEach((thing) => thing.update(dt));
-      this.apples = this.apples.filter((a) => a.alive);
-      this.particles = this.particles.filter((p) => p.alive);
+      this.snake.update(dt);
+      for (let i = 0; i < this.apples.length; i++) this.apples[i].update(dt);
+      for (let i = 0; i < this.portals.length; i++) this.portals[i].update(dt);
+      for (let i = 0; i < this.particles.length; i++) this.particles[i].update(dt);
+      this.removeDead();
     }
 
     this.flash = Math.max(0, this.flash - dt * 2.5);
@@ -543,15 +623,20 @@
   };
 
   Game.prototype.updateHud = function () {
-    const endless = this.mode === 'endless';
-    const every = EndlessLevel.STAGE_EVERY; // in Endless the bar fills up to the next stage
+    let apples = this.eaten + ' / ' + this.level.target;
+    let progress = this.eaten / this.level.target;
+    if (this.mode === 'endless') {
+      // in Endless the bar fills up to the next stage
+      apples = String(this.eaten);
+      progress = (this.eaten % EndlessLevel.STAGE_EVERY) / EndlessLevel.STAGE_EVERY;
+    }
     this.ui.hud({
       title: this.level.title(),
       name: this.level.subtitle(this),
       score: this.score,
       best: this.bestScore(),
-      apples: endless ? String(this.eaten) : this.eaten + ' / ' + this.level.target,
-      progress: endless ? (this.eaten % every) / every : this.eaten / this.level.target,
+      apples: apples,
+      progress: progress,
       canPause: this.state === STATE.PLAYING || this.state === STATE.PAUSED,
       paused: this.state === STATE.PAUSED
     });
@@ -564,34 +649,28 @@
     const cell = this.cell;
 
     // How far through the current step we are (0..1), for smooth movement.
-    const moving = this.state === STATE.PLAYING || this.state === STATE.PAUSED;
-    const alpha = moving ? Math.min(1, this.accumulator / this.interval) : 1;
-    const moverAlpha = moving ? ((this.steps % 2) + alpha) / 2 : 1;
-
-    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
-
-    // Floor: rounded tiles with thin dark gaps, in two alternating shades
-    ctx.fillStyle = BOARD;
-    ctx.fillRect(0, 0, this.width, this.height);
-    const gap = 1.5;
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        ctx.fillStyle = (x + y) % 2 ? TILE_ALT : TILE;
-        Utils.roundRect(ctx, x * cell + gap, y * cell + gap, cell - gap * 2, cell - gap * 2, 4);
-        ctx.fill();
-      }
+    let alpha = 1;
+    let moverAlpha = 1;
+    if (this.state === STATE.PLAYING || this.state === STATE.PAUSED) {
+      alpha = Math.min(1, this.accumulator / this.interval);
+      // moving walls take two steps per cell
+      moverAlpha = ((this.steps % 2) + alpha) / 2;
     }
 
+    // Draw in board units; the canvas scales them to real pixels.
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+
+    this.renderFloor(ctx, cell);
     if (this.level.wrap) this.renderOpenEdges(ctx, cell);
 
     // Each object draws itself (they all have their own render method)
-    this.walls.forEach((w) => w.render(ctx, cell));
+    for (let i = 0; i < this.walls.length; i++) this.walls[i].render(ctx, cell);
     this.renderPending(ctx, cell);
-    this.portals.forEach((p) => p.render(ctx, cell));
-    this.movers.forEach((m) => m.render(ctx, cell, moverAlpha));
-    this.apples.forEach((a) => a.render(ctx, cell));
+    for (let i = 0; i < this.portals.length; i++) this.portals[i].render(ctx, cell);
+    for (let i = 0; i < this.movers.length; i++) this.movers[i].render(ctx, cell, moverAlpha);
+    for (let i = 0; i < this.apples.length; i++) this.apples[i].render(ctx, cell);
     this.snake.render(ctx, cell, alpha);
-    this.particles.forEach((p) => p.render(ctx, cell));
+    for (let i = 0; i < this.particles.length; i++) this.particles[i].render(ctx, cell);
 
     // Red flash after a crash
     if (this.flash > 0) {
@@ -600,72 +679,50 @@
     }
   };
 
-  // A wall that is about to drop: a flashing outline that fills in as it gets closer.
-  Game.prototype.renderPending = function (ctx, cell) {
-    const flash = Math.floor(this.lastTime / 150) % 2 === 0;
-    this.pending.forEach((w) => {
-      const x = w.pos.x * cell;
-      const y = w.pos.y * cell;
-      const fill = 1 - w.steps / Game.WARN_STEPS;
-      ctx.fillStyle = 'rgba(14, 36, 16, 0.45)'; // dark square so the warning shows on the grass
-      ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
-      ctx.fillStyle = 'rgba(203, 191, 169, ' + (0.3 + fill * 0.6) + ')';
-      ctx.fillRect(x + 5, y + 5, cell - 10, cell - 10);
-      ctx.strokeStyle = flash ? '#ffd34d' : '#ffffff';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(x + 2.5, y + 2.5, cell - 5, cell - 5);
-    });
+  // Floor: rounded grass tiles with thin gaps, in two alternating shades.
+  Game.prototype.renderFloor = function (ctx, cell) {
+    ctx.fillStyle = BOARD;
+    ctx.fillRect(0, 0, this.width, this.height);
+    const gap = 1.5;
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if ((x + y) % 2 === 0) ctx.fillStyle = TILE;
+        else ctx.fillStyle = TILE_ALT;
+        Utils.roundRect(ctx, x * cell + gap, y * cell + gap, cell - gap * 2, cell - gap * 2, 4);
+        ctx.fill();
+      }
+    }
   };
 
-  // Open edges get a coloured strip and small arrows pointing out, on every edge
-  // cell that isn't a wall. That shows exactly where you can pass through.
+  // A wall that is about to drop: a dark square with a flashing border.
+  Game.prototype.renderPending = function (ctx, cell) {
+    const flashOn = Math.floor(this.lastTime / 150) % 2 === 0;
+    for (let i = 0; i < this.pending.length; i++) {
+      const x = this.pending[i].pos.x * cell;
+      const y = this.pending[i].pos.y * cell;
+      ctx.fillStyle = 'rgba(14, 36, 16, 0.45)';
+      ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      ctx.fillStyle = Wall.prototype.colour;
+      ctx.fillRect(x + 6, y + 6, cell - 12, cell - 12);
+      if (flashOn) ctx.strokeStyle = '#ffd34d';
+      else ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(x + 2.5, y + 2.5, cell - 5, cell - 5);
+    }
+  };
+
+  // Open edges: a light strip along every edge cell that isn't a wall,
+  // so you can see exactly where you can pass through to the other side.
   Game.prototype.renderOpenEdges = function (ctx, cell) {
-    const pulse = 0.75 + Math.sin(this.lastTime / 400) * 0.2;
-    const depth = cell * 0.12;
     const last = this.cols - 1;
-    const edges = [
-      { dir: Dir.UP, at: (i) => new Vec(i, 0) },
-      { dir: Dir.DOWN, at: (i) => new Vec(i, last) },
-      { dir: Dir.LEFT, at: (i) => new Vec(0, i) },
-      { dir: Dir.RIGHT, at: (i) => new Vec(last, i) }
-    ];
-
-    edges.forEach((edge) => {
-      const d = edge.dir;
-      for (let i = 0; i <= last; i++) {
-        const p = edge.at(i);
-        if (this.wallAt(p)) continue;
-        const x = p.x * cell;
-        const y = p.y * cell;
-
-        // thin solid strip on the outer side of the cell
-        ctx.globalAlpha = pulse;
-        ctx.fillStyle = EDGE;
-        if (d.x === 0) ctx.fillRect(x, d.y > 0 ? y + cell - depth : y, cell, depth);
-        else ctx.fillRect(d.x > 0 ? x + cell - depth : x, y, depth, cell);
-
-        // a small arrow pointing off the board on every other cell
-        if (i % 2 === 1) {
-          const cx = x + cell / 2 + d.x * cell * 0.22;
-          const cy = y + cell / 2 + d.y * cell * 0.22;
-          const s = cell * 0.14;
-          ctx.globalAlpha = pulse;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.beginPath();
-          ctx.moveTo(cx - d.x * s - d.y * s * 1.4, cy - d.y * s - d.x * s * 1.4);
-          ctx.lineTo(cx + d.x * s, cy + d.y * s);
-          ctx.lineTo(cx - d.x * s + d.y * s * 1.4, cy - d.y * s + d.x * s * 1.4);
-          ctx.strokeStyle = 'rgba(14, 36, 16, 0.6)'; // dark edge first, so it reads on the grass
-          ctx.lineWidth = 4.5;
-          ctx.stroke();
-          ctx.strokeStyle = EDGE;
-          ctx.lineWidth = 2.5;
-          ctx.stroke();
-        }
-      }
-    });
-    ctx.globalAlpha = 1;
+    const strip = cell * 0.2;
+    ctx.fillStyle = EDGE;
+    for (let i = 0; i <= last; i++) {
+      if (!this.wallAt(new Vec(i, 0))) ctx.fillRect(i * cell, 0, cell, strip);                         // top
+      if (!this.wallAt(new Vec(i, last))) ctx.fillRect(i * cell, this.height - strip, cell, strip);    // bottom
+      if (!this.wallAt(new Vec(0, i))) ctx.fillRect(0, i * cell, strip, cell);                         // left
+      if (!this.wallAt(new Vec(last, i))) ctx.fillRect(this.width - strip, i * cell, strip, cell);     // right
+    }
   };
 
   global.Game = Game;

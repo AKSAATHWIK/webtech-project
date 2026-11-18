@@ -147,9 +147,8 @@ body {
   height: 100%;
   border-radius: 3px;
   background: var(--green);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.25s ease;
+  width: 0;
+  transition: width 0.25s ease;
 }
 
 /* ---------- buttons ---------- */

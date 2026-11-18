@@ -11,15 +11,16 @@
 (function (global) {
   'use strict';
 
-  const { extend, lerp, roundRect } = Utils;
-  const TAU = Math.PI * 2;
+  const extend = Utils.extend;
+  const lerp = Utils.lerp;
+  const FULL_CIRCLE = Math.PI * 2;
   const OUTLINE = 'rgba(14, 36, 16, 0.6)'; // dark edge that keeps things visible on the grass
 
   // Draws a filled circle.
   function circle(ctx, x, y, r, colour) {
     ctx.fillStyle = colour;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, TAU);
+    ctx.arc(x, y, r, 0, FULL_CIRCLE);
     ctx.fill();
   }
 
@@ -53,7 +54,7 @@
     this.dir = dir;
     this.queue = [];   // turns pressed but not used yet
     this.growth = 0;   // how many more cells to grow
-    this.body = [];
+    this.body = [];    // body[0] is the head
     for (let i = 0; i < length; i++) {
       this.body.push(new Vec(x - dir.x * i, y - dir.y * i));
     }
@@ -69,7 +70,8 @@
 
   // The direction the snake will be facing after its queued turns.
   Snake.prototype.nextDir = function () {
-    return this.queue.length ? this.queue[this.queue.length - 1] : this.dir;
+    if (this.queue.length > 0) return this.queue[this.queue.length - 1];
+    return this.dir;
   };
 
   // Saves a turn for the next step. Reversing straight back is not allowed.
@@ -82,25 +84,34 @@
   };
 
   Snake.prototype.applyTurn = function () {
-    if (this.queue.length) this.dir = this.queue.shift();
+    if (this.queue.length > 0) this.dir = this.queue.shift();
   };
 
+  // Is any part of the body on cell p?
   Snake.prototype.occupies = function (p) {
-    return this.body.some((part) => part.equals(p));
+    for (let i = 0; i < this.body.length; i++) {
+      if (this.body[i].equals(p)) return true;
+    }
+    return false;
   };
 
-  // Would moving into p hit the body? The tail moves away unless we are growing.
+  // Would moving into p hit the body? The tail moves away this step,
+  // so it is skipped, unless the snake is growing.
   Snake.prototype.hitsSelf = function (p) {
-    const parts = this.growth > 0 ? this.body : this.body.slice(0, -1);
-    return parts.some((part) => part.equals(p));
+    let count = this.body.length;
+    if (this.growth === 0) count = count - 1;
+    for (let i = 0; i < count; i++) {
+      if (this.body[i].equals(p)) return true;
+    }
+    return false;
   };
 
   Snake.prototype.move = function (next) {
     this.prev = this.body.slice();
-    this.body.unshift(next);
+    this.body.unshift(next); // new head at the front
     this.pos = next;
     if (this.growth > 0) this.growth--;
-    else this.body.pop();
+    else this.body.pop();    // remove the tail
   };
 
   Snake.prototype.grow = function (n) {
@@ -118,52 +129,73 @@
     return this.skin.colour(t, i);
   };
 
-  // alpha (0..1) is how far we are through the current step, so the snake slides smoothly.
-  Snake.prototype.render = function (ctx, cell, alpha) {
-    const points = this.body.map((cur, i) => {
-      let from = this.prev[i] || cur;
-      if (from.distance(cur) > 1) from = cur; // went through a portal or an open edge
-      return {
-        x: (lerp(from.x, cur.x, alpha) + 0.5) * cell,
-        y: (lerp(from.y, cur.y, alpha) + 0.5) * cell
-      };
-    });
+  // Where segment i is drawn, in pixels. alpha (0..1) is how far through the
+  // current step we are, so the snake slides smoothly between cells.
+  Snake.prototype.segmentPoint = function (i, cell, alpha) {
+    const now = this.body[i];
+    let before = this.prev[i];
+    // a new segment, or one that went through a portal or an open edge, doesn't slide
+    if (!before || before.distance(now) > 1) before = now;
+    return {
+      x: (lerp(before.x, now.x, alpha) + 0.5) * cell,
+      y: (lerp(before.y, now.y, alpha) + 0.5) * cell
+    };
+  };
 
-    // Body: thick round lines from the tail up to the head.
-    // The first pass is a dark outline (slightly wider), so every skin stands
-    // out on the green floor. The second pass is the real colours.
-    ctx.lineCap = 'round';
-    const edge = cell * 0.14;
-    for (const pass of ['outline', 'body']) {
-      for (let i = points.length - 1; i > 0; i--) {
-        const a = points[i];
-        const b = points[i - 1];
-        const t = i / (points.length - 1);
-        const width = cell * (0.76 - t * 0.24);
-        ctx.strokeStyle = pass === 'outline' ? OUTLINE : this.colour(t, i);
-        ctx.lineWidth = pass === 'outline' ? width + edge : width;
-        // don't draw a line across the board when the body is split by a portal
-        const end = Math.abs(a.x - b.x) + Math.abs(a.y - b.y) < cell * 1.5 ? b : a;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
+  // Draws the body as thick round lines from the tail up to the head.
+  Snake.prototype.drawBody = function (ctx, cell, alpha, outline) {
+    const last = this.body.length - 1;
+    for (let i = last; i > 0; i--) {
+      const a = this.segmentPoint(i, cell, alpha);
+      const b = this.segmentPoint(i - 1, cell, alpha);
+      const t = i / last;                    // 0 at the head, 1 at the tail
+      const width = cell * (0.76 - t * 0.24); // thinner towards the tail
+
+      if (outline) {
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = width + cell * 0.14;
+      } else {
+        ctx.strokeStyle = this.colour(t, i);
+        ctx.lineWidth = width;
       }
+
+      // if the two parts are far apart (portal or open edge), just draw a dot,
+      // not a line across the whole board
+      const gap = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      if (gap < cell * 1.5) ctx.lineTo(b.x, b.y);
+      else ctx.lineTo(a.x, a.y);
+      ctx.stroke();
     }
+  };
+
+  Snake.prototype.render = function (ctx, cell, alpha) {
+    ctx.lineCap = 'round';
+    // a dark outline first (slightly wider), then the real colours on top
+    this.drawBody(ctx, cell, alpha, true);
+    this.drawBody(ctx, cell, alpha, false);
 
     // Head
-    const h = points[0];
-    const d = this.dir;
+    const h = this.segmentPoint(0, cell, alpha);
     const r = cell * 0.44;
-    circle(ctx, h.x, h.y, r + edge / 2, OUTLINE);
+    circle(ctx, h.x, h.y, r + cell * 0.07, OUTLINE);
     circle(ctx, h.x, h.y, r, this.colour(0, 0));
 
-    // Eyes, one on each side of the head
-    for (const side of [-1, 1]) {
-      const ex = h.x + d.x * r * 0.28 - d.y * r * 0.46 * side;
-      const ey = h.y + d.y * r * 0.28 + d.x * r * 0.46 * side;
-      circle(ctx, ex, ey, r * 0.3, '#fff');
-      if (this.alive) circle(ctx, ex + d.x * r * 0.12, ey + d.y * r * 0.12, r * 0.15, '#13201a');
+    // Eyes: a little forward from the centre, one on each side.
+    // (-d.y, d.x) is the direction turned 90 degrees, which points to the side.
+    const d = this.dir;
+    const forward = r * 0.28;
+    const side = r * 0.46;
+    this.drawEye(ctx, h.x + d.x * forward - d.y * side, h.y + d.y * forward + d.x * side, r);
+    this.drawEye(ctx, h.x + d.x * forward + d.y * side, h.y + d.y * forward - d.x * side, r);
+  };
+
+  Snake.prototype.drawEye = function (ctx, x, y, r) {
+    circle(ctx, x, y, r * 0.3, '#fff');
+    if (this.alive) {
+      // the pupil looks the way the snake is going
+      circle(ctx, x + this.dir.x * r * 0.12, y + this.dir.y * r * 0.12, r * 0.15, '#13201a');
     }
   };
 
@@ -184,12 +216,12 @@
 
   Apple.prototype.render = function (ctx, cell) {
     const c = this.centre(cell);
-    // quick "pop in" when it appears, then a gentle bob
+    // grows in quickly when it appears, then bobs gently up and down
     const r = cell * 0.4 * Math.min(1, this.age * 6);
     const y = c.y + Math.sin(this.age * 4) * cell * 0.03;
     if (r <= 0) return;
 
-    // dark outline, then a flat body with a darker lower half and a small shine
+    // dark outline, round body, darker bottom half, small shine
     circle(ctx, c.x, y, r + cell * 0.07, OUTLINE);
     circle(ctx, c.x, y, r, this.colour);
     ctx.fillStyle = this.dark;
@@ -198,22 +230,17 @@
     ctx.fill();
     circle(ctx, c.x - r * 0.38, y - r * 0.35, r * 0.17, this.light);
 
-    // stem and leaf
+    // stem
     ctx.strokeStyle = '#6b4226';
-    ctx.lineWidth = Math.max(1.5, r * 0.14);
+    ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(c.x, y - r * 0.75);
     ctx.lineTo(c.x + r * 0.1, y - r * 1.15);
     ctx.stroke();
-    // dark green leaf with an outline, so it shows on the grass
-    ctx.beginPath();
-    ctx.ellipse(c.x + r * 0.42, y - r * 1.02, r * 0.36, r * 0.17, -0.5, 0, TAU);
-    ctx.fillStyle = '#2e6b2a';
-    ctx.fill();
-    ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+
+    // leaf
+    circle(ctx, c.x + r * 0.4, y - r * 1.0, r * 0.22, '#2e6b2a');
   };
 
   // Called by the game when the snake reaches this apple.
@@ -248,43 +275,25 @@
     const c = this.centre(cell);
     const timeLeft = this.lifetime - this.age;
 
-    // ring that shrinks as time runs out
-    // (a dark ring underneath so the gold one shows on the grass)
-    const end = -Math.PI / 2 + TAU * (timeLeft / this.lifetime);
+    // a ring around it that gets shorter as time runs out
+    const start = -Math.PI / 2; // the top of the circle
+    const end = start + FULL_CIRCLE * (timeLeft / this.lifetime);
     ctx.lineCap = 'round';
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.arc(c.x, c.y, cell * 0.6, -Math.PI / 2, end);
+    ctx.arc(c.x, c.y, cell * 0.6, start, end);
     ctx.stroke();
     ctx.strokeStyle = '#ffd34d';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(c.x, c.y, cell * 0.6, -Math.PI / 2, end);
+    ctx.arc(c.x, c.y, cell * 0.6, start, end);
     ctx.stroke();
 
-    // blink in the last 1.5 seconds
-    const blinkOff = timeLeft < 1.5 && Math.floor(this.age * 8) % 2 === 0;
-    if (blinkOff) return;
-    Apple.prototype.render.call(this, ctx, cell);
+    // blink in the last 1.5 seconds: skip drawing on every other short moment
+    if (timeLeft < 1.5 && Math.floor(this.age * 8) % 2 === 0) return;
 
-    // a small twinkle that turns around the apple
-    const a = this.age * 2.5;
-    const sx = c.x + Math.cos(a) * cell * 0.42;
-    const sy = c.y + Math.sin(a) * cell * 0.42;
-    const s = cell * 0.12;
-    ctx.fillStyle = '#fff8d6';
-    ctx.beginPath();
-    ctx.moveTo(sx, sy - s);
-    ctx.lineTo(sx + s * 0.3, sy - s * 0.3);
-    ctx.lineTo(sx + s, sy);
-    ctx.lineTo(sx + s * 0.3, sy + s * 0.3);
-    ctx.lineTo(sx, sy + s);
-    ctx.lineTo(sx - s * 0.3, sy + s * 0.3);
-    ctx.lineTo(sx - s, sy);
-    ctx.lineTo(sx - s * 0.3, sy - s * 0.3);
-    ctx.closePath();
-    ctx.fill();
+    Apple.prototype.render.call(this, ctx, cell); // draw the apple itself
   };
 
   /* ---------- Wall ---------- */
@@ -294,7 +303,7 @@
   }
   extend(Wall, Entity);
 
-  // Light stone blocks so they stand out clearly from the dark floor.
+  // Light stone blocks so they stand out clearly from the grass.
   Wall.prototype.colour = '#cbbfa9';
   Wall.prototype.light = '#e6dccb';
   Wall.prototype.shade = '#9c8f78';
@@ -302,12 +311,12 @@
   Wall.prototype.render = function (ctx, cell) {
     const x = this.pos.x * cell;
     const y = this.pos.y * cell;
-    const edge = Math.max(2, cell * 0.14);
+    const edge = cell * 0.14;
     ctx.fillStyle = this.colour;
     ctx.fillRect(x, y, cell, cell);
-    ctx.fillStyle = this.light; // lit top edge
+    ctx.fillStyle = this.light; // lighter top edge
     ctx.fillRect(x, y, cell, edge);
-    ctx.fillStyle = this.shade; // shadow on the bottom edge
+    ctx.fillStyle = this.shade; // darker bottom edge
     ctx.fillRect(x, y + cell - edge, cell, edge);
   };
 
@@ -315,7 +324,8 @@
 
   function MovingWall(x, y, axis) {
     Wall.call(this, x, y);
-    this.dir = axis === 'v' ? Dir.DOWN : Dir.RIGHT;
+    if (axis === 'v') this.dir = Dir.DOWN;
+    else this.dir = Dir.RIGHT;
     this.prev = this.pos;
   }
   extend(MovingWall, Wall);
@@ -323,28 +333,31 @@
   MovingWall.prototype.colour = '#f08a24';
 
   // Moves one cell. If the way is blocked it turns around.
-  MovingWall.prototype.step = function (isBlocked) {
+  // The game decides what counts as blocked (game.moverBlocked).
+  MovingWall.prototype.step = function (game) {
     this.prev = this.pos;
     let next = this.pos.add(this.dir);
-    if (isBlocked(next, this)) {
-      this.dir = new Vec(-this.dir.x, -this.dir.y);
+    if (game.moverBlocked(next, this)) {
+      this.dir = new Vec(-this.dir.x, -this.dir.y); // turn around
       next = this.pos.add(this.dir);
-      if (isBlocked(next, this)) return; // stuck on both sides, stay put
+      if (game.moverBlocked(next, this)) return;  // stuck on both sides, stay put
     }
     this.pos = next;
   };
 
   MovingWall.prototype.render = function (ctx, cell, alpha) {
+    // slide smoothly from the old cell to the new one
     const x = lerp(this.prev.x, this.pos.x, alpha) * cell;
     const y = lerp(this.prev.y, this.pos.y, alpha) * cell;
     const pad = cell * 0.06;
-    roundRect(ctx, x + pad, y + pad, cell - pad * 2, cell - pad * 2, cell * 0.22);
+    Utils.roundRect(ctx, x + pad, y + pad, cell - pad * 2, cell - pad * 2, cell * 0.22);
     ctx.fillStyle = this.colour;
     ctx.fill();
     ctx.strokeStyle = OUTLINE;
     ctx.lineWidth = 2;
     ctx.stroke();
-    // an arrow-ish bar showing which way it slides
+
+    // a bar showing which way it slides
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     if (this.dir.x !== 0) ctx.fillRect(x + cell * 0.22, y + cell * 0.44, cell * 0.56, cell * 0.12);
     else ctx.fillRect(x + cell * 0.44, y + cell * 0.22, cell * 0.12, cell * 0.56);
@@ -355,30 +368,30 @@
   function Portal(x, y, id) {
     Entity.call(this, x, y);
     this.id = id;
-    this.partner = null; // set by Level.build()
+    this.partner = null; // the other portal with the same id, set by Level.build()
   }
   extend(Portal, Entity);
 
   Portal.COLOURS = ['#3d9be0', '#a874d6', '#2fb79a', '#e0668a'];
 
-  // A small swirl: coloured ring, dark hole, turning arms inside.
+  // A small swirl: white rim, coloured ring, dark hole and three turning arms.
   Portal.prototype.render = function (ctx, cell) {
     const c = this.centre(cell);
     const colour = Portal.COLOURS[this.id - 1];
-    const spin = this.age * 3;
 
     circle(ctx, c.x, c.y, cell * 0.52, OUTLINE);
-    circle(ctx, c.x, c.y, cell * 0.47, '#ffffff'); // white rim so it pops off the grass
+    circle(ctx, c.x, c.y, cell * 0.47, '#ffffff');
     circle(ctx, c.x, c.y, cell * 0.41, colour);
     circle(ctx, c.x, c.y, cell * 0.28, '#0b1a17');
 
+    // three short arcs, spaced a third of a circle apart, turning with age
     ctx.strokeStyle = colour;
     ctx.lineWidth = cell * 0.07;
     ctx.lineCap = 'round';
     for (let k = 0; k < 3; k++) {
-      const a = spin + k * TAU / 3;
+      const angle = this.age * 3 + k * (FULL_CIRCLE / 3);
       ctx.beginPath();
-      ctx.arc(c.x, c.y, cell * 0.2, a, a + 1.4);
+      ctx.arc(c.x, c.y, cell * 0.2, angle, angle + 1.4);
       ctx.stroke();
     }
     circle(ctx, c.x, c.y, cell * 0.06, '#fff');
@@ -390,18 +403,19 @@
 
   function Skin(name, hue, sat) {
     this.name = name;
-    this.hue = hue;
-    this.sat = sat;
+    this.hue = hue; // colour on the colour wheel, 0 to 360
+    this.sat = sat; // how strong the colour is, 0 to 100
   }
 
-  // Lighter at the head, darker towards the tail.
-  Skin.prototype.colour = function (t) {
-    return 'hsl(' + this.hue + ', ' + this.sat + '%, ' + (62 - t * 22) + '%)';
+  // Lighter at the head (t = 0), darker towards the tail (t = 1).
+  Skin.prototype.colour = function (t, i) {
+    const light = 62 - t * 22;
+    return 'hsl(' + this.hue + ', ' + this.sat + '%, ' + light + '%)';
   };
 
-  // CSS background for the button in the skin picker.
+  // The colour of this skin's button in the skin picker.
   Skin.prototype.swatch = function () {
-    return this.colour(0.3);
+    return this.colour(0.3, 0);
   };
 
   function StripedSkin(name, hue, sat, stripe) {
@@ -412,12 +426,13 @@
 
   // Every third segment is a stripe; the rest use the normal Skin colour.
   StripedSkin.prototype.colour = function (t, i) {
-    return i % 3 === 2 ? this.stripe : Skin.prototype.colour.call(this, t);
+    if (i % 3 === 2) return this.stripe;
+    return Skin.prototype.colour.call(this, t, i);
   };
 
   StripedSkin.prototype.swatch = function () {
-    const a = Skin.prototype.colour.call(this, 0.2);
-    return 'repeating-linear-gradient(90deg, ' + a + ' 0 12px, ' + this.stripe + ' 12px 18px)';
+    const main = Skin.prototype.colour.call(this, 0.2, 0);
+    return 'repeating-linear-gradient(90deg, ' + main + ' 0 12px, ' + this.stripe + ' 12px 18px)';
   };
 
   function RainbowSkin(name) {
@@ -425,19 +440,18 @@
   }
   extend(RainbowSkin, Skin);
 
+  // Each segment moves 28 degrees further round the colour wheel.
   RainbowSkin.prototype.colour = function (t, i) {
-    return 'hsl(' + ((i || 0) * 28 % 360) + ', 80%, 60%)';
+    const hue = (i * 28) % 360;
+    return 'hsl(' + hue + ', 80%, 60%)';
   };
 
   RainbowSkin.prototype.swatch = function () {
-    // hard colour bands, one per segment colour
-    const bands = [0, 1, 2, 3, 4, 5].map((i) =>
-      this.colour(0, i * 2) + ' ' + (i * 16.66) + '% ' + ((i + 1) * 16.66) + '%');
-    return 'linear-gradient(90deg, ' + bands.join(', ') + ')';
+    return 'linear-gradient(90deg, red, orange, yellow, lime, deepskyblue, violet)';
   };
 
   Skin.LIST = [
-    new Skin('Ocean', 205, 80),   // default: blue stands out on the grass
+    new Skin('Ocean', 205, 80), // default: blue stands out on the grass
     new Skin('Lime', 72, 80),
     new Skin('Grape', 272, 60),
     new Skin('Ember', 12, 78),
@@ -454,11 +468,13 @@
 
   function Particle(x, y, colour) {
     Entity.call(this, x, y);
-    const angle = Math.random() * TAU;
+    // fly off in a random direction at a random speed
+    const angle = Math.random() * FULL_CIRCLE;
     const speed = 50 + Math.random() * 90;
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
-    this.life = this.maxLife = 0.4 + Math.random() * 0.4;
+    this.maxLife = 0.4 + Math.random() * 0.4; // seconds
+    this.life = this.maxLife;
     this.colour = colour;
   }
   extend(Particle, Entity);
@@ -472,7 +488,7 @@
   };
 
   Particle.prototype.render = function (ctx) {
-    const fade = this.life / this.maxLife;
+    const fade = this.life / this.maxLife; // 1 when new, 0 when gone
     ctx.globalAlpha = fade;
     circle(ctx, this.pos.x, this.pos.y, 1 + 2 * fade, this.colour);
     ctx.globalAlpha = 1;
@@ -484,8 +500,9 @@
     Particle.call(this, x, y, '#fff');
     this.text = text;
     this.vx = 0;
-    this.vy = -55;
-    this.life = this.maxLife = 0.8;
+    this.vy = -55; // straight up
+    this.maxLife = 0.8;
+    this.life = this.maxLife;
   }
   extend(ScorePopup, Particle);
 
@@ -493,8 +510,7 @@
     ctx.globalAlpha = this.life / this.maxLife;
     ctx.font = '600 ' + Math.round(cell * 0.55) + 'px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = OUTLINE; // dark edge so white text reads on the grass
+    ctx.strokeStyle = OUTLINE; // dark edge so the white text reads on the grass
     ctx.lineWidth = 3;
     ctx.strokeText(this.text, this.pos.x, this.pos.y);
     ctx.fillStyle = this.colour;
@@ -502,8 +518,17 @@
     ctx.globalAlpha = 1;
   };
 
-  Object.assign(global, {
-    Entity, Snake, Apple, GoldenApple, Wall, MovingWall, Portal, Particle, ScorePopup,
-    Skin, StripedSkin, RainbowSkin
-  });
+  // Share the constructors with the other files.
+  global.Entity = Entity;
+  global.Snake = Snake;
+  global.Apple = Apple;
+  global.GoldenApple = GoldenApple;
+  global.Wall = Wall;
+  global.MovingWall = MovingWall;
+  global.Portal = Portal;
+  global.Particle = Particle;
+  global.ScorePopup = ScorePopup;
+  global.Skin = Skin;
+  global.StripedSkin = StripedSkin;
+  global.RainbowSkin = RainbowSkin;
 })(window);

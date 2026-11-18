@@ -1,12 +1,11 @@
 // Starts everything once the page has loaded.
-(function (global) {
+(function () {
   'use strict';
 
-  // Lists the prototype chain of a few live objects in the sidebar.
+  // Lists the prototype chain of a few real objects in the sidebar,
+  // e.g. "GoldenApple → Apple → Entity → Object".
   function showChains(game) {
     const list = document.getElementById('chains');
-    if (!list) return;
-
     const samples = [
       game.snake,
       new GoldenApple(0, 0),
@@ -17,14 +16,12 @@
       game.input
     ];
 
-    samples.forEach((obj) => {
+    for (let i = 0; i < samples.length; i++) {
+      const names = Utils.chainOf(samples[i]);
       const li = document.createElement('li');
-      const chain = Utils.chainOf(obj);
-      const head = document.createElement('b');
-      head.textContent = chain[0];
-      li.append(head, document.createTextNode(' → ' + chain.slice(1).join(' → ')));
+      li.innerHTML = '<b>' + names[0] + '</b> → ' + names.slice(1).join(' → ');
       list.appendChild(li);
-    });
+    }
   }
 
   function init() {
@@ -34,9 +31,9 @@
     game.input.bindPad(document.getElementById('pad'));
     showChains(game);
     game.start();
-    global.game = game; // handy for poking at objects in the console
+    window.game = game; // handy for trying things in the browser console
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
-})(window);
+  // The scripts are at the end of <body>, so the page is ready when this runs.
+  init();
+})();
