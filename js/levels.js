@@ -14,7 +14,7 @@
 
   const MAPS = [
     {
-      name: 'First bite', target: 6, speed: 135,
+      name: 'First bite', target: 5, speed: 150,
       map: [
         '.....................',
         '.....................',
@@ -40,7 +40,7 @@
       ]
     },
     {
-      name: 'Pillars', target: 8, speed: 128,
+      name: 'Pillars', target: 6, speed: 145,
       map: [
         '.....................',
         '.....................',
@@ -66,7 +66,7 @@
       ]
     },
     {
-      name: 'Wraparound', target: 10, speed: 122, wrap: true,
+      name: 'Wraparound', target: 8, speed: 140, wrap: true,
       map: [
         '.....................',
         '.....................',
@@ -92,7 +92,7 @@
       ]
     },
     {
-      name: 'The box', target: 10, speed: 118, wrap: true,
+      name: 'The box', target: 8, speed: 136, wrap: true,
       map: [
         '#########...#########',
         '#...................#',
@@ -118,7 +118,7 @@
       ]
     },
     {
-      name: 'Lanes', target: 12, speed: 112,
+      name: 'Lanes', target: 10, speed: 132,
       map: [
         '.....................',
         '.....................',
@@ -144,59 +144,60 @@
       ]
     },
     {
-      name: 'Zigzag', target: 12, speed: 108,
+      name: 'Zigzag', target: 10, speed: 130,
       map: [
-        '....#.......#........',
-        '....#.......#........',
-        '....#.......#........',
-        '....#.......#........',
-        '....#.......#........',
-        '....#.......#........',
-        '....#.......#........',
-        '....#...#...#...#....',
-        '....#...#...#...#....',
-        '....#...#...#...#....',
-        '....#...#...#...#....',
-        '....#...#...#...#....',
-        '....#...#...#...#....',
-        '....#...#...#...#....',
-        '........#.......#....',
-        '........#.......#....',
-        '........#.......#....',
-        '..S.....#.......#....',
-        '........#.......#....',
-        '........#.......#....',
-        '........#.......#....'
+        '.....................',
+        '.....................',
+        '.....#.........#.....',
+        '.....#.........#.....',
+        '.....#.........#.....',
+        '.....#.........#.....',
+        '.....#....#....#.....',
+        '.....#....#....#.....',
+        '.....#....#....#.....',
+        '.....#....#....#.....',
+        '..S..#....#....#.....',
+        '.....#....#....#.....',
+        '.....#....#....#.....',
+        '..........#..........',
+        '..........#..........',
+        '..........#..........',
+        '..........#..........',
+        '..........#..........',
+        '.....................',
+        '.....................',
+        '.....................'
       ]
     },
     {
-      name: 'Portals', target: 12, speed: 108,
+      // Portals are shortcuts here, not the only way round.
+      name: 'Portals', target: 8, speed: 128,
       map: [
-        '..........#..........',
-        '...S......#..........',
+        '.....................',
+        '.....................',
+        '.....................',
         '..........#..........',
         '..........#..........',
         '....1.....#.....2....',
         '..........#..........',
         '..........#..........',
-        '..3.......#.......3..',
-        '..........#..........',
-        '..........#..........',
-        '#####################',
-        '..........#..........',
-        '..........#..........',
-        '..........#..........',
+        '.....................',
+        '.....................',
+        '...S.................',
+        '.....................',
+        '.....................',
         '..........#..........',
         '..........#..........',
         '....2.....#.....1....',
         '..........#..........',
         '..........#..........',
-        '..........#..........',
-        '..........#..........'
+        '.....................',
+        '.....................',
+        '.....................'
       ]
     },
     {
-      name: 'Traffic', target: 14, speed: 102,
+      name: 'Traffic', target: 10, speed: 125,
       map: [
         '.....................',
         '.....................',
@@ -222,33 +223,33 @@
       ]
     },
     {
-      name: 'Four rooms', target: 14, speed: 98,
+      name: 'Four rooms', target: 12, speed: 120,
       map: [
         '..........#..........',
         '..........#..........',
-        '...S......#..........',
+        '..........#..........',
+        '..........v..........',
+        '.....................',
+        '...S.................',
+        '.....................',
+        '..........#..........',
+        '..........#..........',
+        '..........#..........',
+        '###h....#####h....###',
+        '..........#..........',
+        '..........#..........',
         '..........#..........',
         '..........v..........',
         '.....................',
         '.....................',
-        '..........#..........',
-        '..........#..........',
-        '..........#..........',
-        '####h..#######h..####',
-        '..........#..........',
-        '..........#..........',
-        '..........#..........',
-        '..........v..........',
         '.....................',
-        '.....................',
-        '..........#..........',
         '..........#..........',
         '..........#..........',
         '..........#..........'
       ]
     },
     {
-      name: 'Last lap', target: 16, speed: 90, wrap: true,
+      name: 'Last lap', target: 12, speed: 115, wrap: true,
       map: [
         '########.....########',
         '#...................#',
@@ -272,6 +273,35 @@
         '#...................#',
         '########.....########'
       ]
+    },
+    {
+      // Made by the team: the hardest one, with everything at once.
+      // Every corridor is at least 3 cells wide, so it is tough but fair.
+      name: "Creators' level", title: "Creators' level", creators: true,
+      target: 15, speed: 105, wrap: true,
+      map: [
+        '#####...#####...#####',
+        '#...................#',
+        '#..1.............2..#',
+        '#.......h...........#',
+        '#...###.......###...#',
+        '#...#...........#...#',
+        '....#.....v.....#....',
+        '....#...........#....',
+        '#.......#####.......#',
+        '#...................#',
+        '#..S................#',
+        '#...................#',
+        '#.......#####.......#',
+        '....#...........#....',
+        '....#.....v.....#....',
+        '#...#...........#...#',
+        '#...###.......###...#',
+        '#...........h.......#',
+        '#..2.............1..#',
+        '#...................#',
+        '#####...#####...#####'
+      ]
     }
   ];
 
@@ -283,6 +313,8 @@
     this.target = def.target;
     this.speed = def.speed;
     this.wrap = !!def.wrap;
+    this.customTitle = def.title || null; // shown instead of "Level 11"
+    this.creators = !!def.creators;
     this.cols = SIZE;
     this.rows = SIZE;
     this.parse(def.map || []);
@@ -329,13 +361,19 @@
   };
 
   Level.prototype.title = function () {
-    return 'Level ' + this.number;
+    return this.customTitle || 'Level ' + this.number;
+  };
+
+  // The second line of the score bar.
+  Level.prototype.subtitle = function () {
+    return this.creators ? 'Made by the team · the hardest one' : this.name;
   };
 
   Level.prototype.goal = function () {
-    let text = 'Eat ' + this.target + ' apples.';
-    if (this.wrap) text += ' The edges are open.';
-    if (this.portalCells.length) text += ' Portals link matching colours.';
+    let text = this.creators ? 'Our hardest level, but it can be beaten. ' : '';
+    text += 'Eat ' + this.target + ' apples.';
+    if (this.wrap) text += ' Glowing edges are open: go through to the other side.';
+    if (this.portalCells.length) text += ' Portals take you to the one of the same colour.';
     if (this.moverCells.length) text += ' Orange walls move.';
     return text;
   };
@@ -351,27 +389,62 @@
   // Called after each regular apple. Endless mode uses it to add walls.
   Level.prototype.onEat = function () {};
 
-  /* ---------- EndlessLevel: no target, gets faster and fills up ---------- */
+  // Points for eating an apple. Endless mode adds a combo on top.
+  Level.prototype.pointsFor = function (game, apple) {
+    return apple.points;
+  };
+
+  /* ---------- EndlessLevel: no target, gets faster and changes as you go ---------- */
+  //
+  //  - eat apples quickly one after another for a combo (up to x5 points)
+  //  - every 5 apples a wall drops in (it flashes first, so you can move away)
+  //  - every 10 apples a new stage starts: stage 2 adds portals, 3 and 4 add moving walls
 
   function EndlessLevel() {
     // open edges: leave one side and come back on the other
-    Level.call(this, { name: 'Endless', target: Infinity, speed: 120, wrap: true, map: [] }, 0);
+    Level.call(this, { name: 'Endless', target: Infinity, speed: 135, wrap: true, map: [] }, 0);
+    this.combo = 0;
+    this.lastEat = -Infinity; // play time of the last apple
   }
   Utils.extend(EndlessLevel, Level);
 
   EndlessLevel.WALL_EVERY = 5;
+  EndlessLevel.STAGE_EVERY = 10;
+  EndlessLevel.COMBO_TIME = 4; // seconds between apples to keep a combo
+  EndlessLevel.MAX_COMBO = 5;
 
   EndlessLevel.prototype.title = function () {
     return 'Endless';
   };
 
+  EndlessLevel.prototype.stage = function (game) {
+    return 1 + Math.floor(game.eaten / EndlessLevel.STAGE_EVERY);
+  };
+
+  // The combo still running right now (1 if it has run out).
+  EndlessLevel.prototype.liveCombo = function (game) {
+    return game.playTime - this.lastEat <= EndlessLevel.COMBO_TIME ? this.combo : 1;
+  };
+
+  EndlessLevel.prototype.subtitle = function (game) {
+    const combo = this.liveCombo(game);
+    return 'Stage ' + this.stage(game) + (combo > 1 ? ' · combo x' + combo : '');
+  };
+
   EndlessLevel.prototype.goal = function () {
-    return 'No finish line and the edges are open. It speeds up as you eat, ' +
-      'and a new wall drops every ' + EndlessLevel.WALL_EVERY + ' apples.';
+    return 'Every edge is open and there is no finish line. Eat apples quickly for a combo. ' +
+      'Walls drop in as you go, and each stage adds something new.';
+  };
+
+  EndlessLevel.prototype.pointsFor = function (game, apple) {
+    const quick = game.playTime - this.lastEat <= EndlessLevel.COMBO_TIME;
+    this.combo = quick ? Math.min(this.combo + 1, EndlessLevel.MAX_COMBO) : 1;
+    this.lastEat = game.playTime;
+    return apple.points * this.combo;
   };
 
   EndlessLevel.prototype.interval = function (game) {
-    return Math.max(70, this.speed - game.eaten * 2.5);
+    return Math.max(80, this.speed - game.eaten * 2);
   };
 
   EndlessLevel.prototype.isComplete = function () {
@@ -379,7 +452,10 @@
   };
 
   EndlessLevel.prototype.onEat = function (game) {
-    if (game.eaten % EndlessLevel.WALL_EVERY === 0) game.dropWall();
+    const n = game.eaten;
+    if (n % EndlessLevel.WALL_EVERY === 0) game.dropWall();
+    if (n === EndlessLevel.STAGE_EVERY) game.addPortals();
+    if (n === EndlessLevel.STAGE_EVERY * 2 || n === EndlessLevel.STAGE_EVERY * 3) game.addMover();
   };
 
   global.Level = Level;

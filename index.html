@@ -3,11 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1e2429">
+  <meta name="theme-color" content="#d5e9dd">
   <title>Snake</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- Icon set: each <symbol> is drawn with <svg><use href="#i-name"/></svg> -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+      <symbol id="i-infinity" viewBox="0 0 24 24"><path d="M6.5 8.5C4.6 8.5 3 10 3 12s1.6 3.5 3.5 3.5c3.5 0 7.5-7 11-7 1.9 0 3.5 1.6 3.5 3.5s-1.6 3.5-3.5 3.5c-3.5 0-7.5-7-11-7z"/></symbol>
+      <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-1 1.3-2-.6-1.1.2-2.4 1.4-2.4H17a4 4 0 0 0 4-4C21 7 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="14.5" cy="7" r="1"/><circle cx="17" cy="10.5" r="1"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+      <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 3.5v5h5"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></symbol>
+      <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7M6 9.5V20h12V9.5"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+      <symbol id="i-apple" viewBox="0 0 24 24"><path d="M12 7.5c-1.5-1-5.5-1.5-7 2-1.4 3.4.5 8.4 3 10 1.4.9 2.6.4 4 0 1.4.4 2.6.9 4 0 2.5-1.6 4.4-6.6 3-10-1.5-3.5-5.5-3-7-2z"/><path d="M12 7.5c0-2 .8-3.5 2.5-4.5"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+      <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11M12 13v4M8.5 20h7M9.5 17h5v3h-5z"/></symbol>
+      <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></symbol>
+      <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6zM9 4v14M15 6v14"/></symbol>
+      <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.1.7 3.5 2.8 3.5 5.7"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-mouse" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></symbol>
+      <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 11V5a1.5 1.5 0 0 1 3 0v5M12 10V4a1.5 1.5 0 0 1 3 0v6M15 10V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 13.6a1.5 1.5 0 0 1 2.4-1.8L9 15"/></symbol>
+    </defs>
+  </svg>
+
   <div class="app">
     <header class="top">
       <h1>Snake</h1>
@@ -22,11 +48,13 @@
             <span data-field="name">First bite</span>
           </div>
           <dl class="hud-stats">
-            <div><dt>Apples</dt><dd data-field="apples">0 / 6</dd></div>
-            <div><dt>Score</dt><dd data-field="score">0</dd></div>
-            <div><dt>Best</dt><dd data-field="best">0</dd></div>
+            <div><dt><svg class="icon"><use href="#i-apple"/></svg>Apples</dt><dd data-field="apples">0 / 5</dd></div>
+            <div><dt><svg class="icon"><use href="#i-star"/></svg>Score</dt><dd data-field="score">0</dd></div>
+            <div><dt><svg class="icon"><use href="#i-trophy"/></svg>Best</dt><dd data-field="best">0</dd></div>
           </dl>
-          <button id="hud-pause" class="btn btn-small" type="button" data-action="pause" data-field="pause" disabled>Pause</button>
+          <button id="hud-pause" class="btn btn-small btn-icon" type="button" data-action="pause" disabled aria-label="Pause">
+            <svg class="icon"><use href="#i-pause"/></svg><span data-field="pause">Pause</span>
+          </button>
         </div>
         <div class="meter"><div id="hud-progress" class="meter-fill"></div></div>
 
@@ -36,10 +64,11 @@
           <div id="overlay" class="overlay">
             <section class="screen" data-screen="menu">
               <h2 class="big">Snake</h2>
-              <p class="sub" data-field="menu-best">Ten levels, one endless mode.</p>
+              <p class="sub" data-field="menu-best">Ten levels, a creators&rsquo; level and endless mode.</p>
               <div class="stack">
-                <button class="btn btn-primary" type="button" data-action="campaign" data-primary>Play levels</button>
-                <button class="btn" type="button" data-action="endless">Endless</button>
+                <button class="btn btn-primary" type="button" data-action="campaign" data-primary><svg class="icon"><use href="#i-play"/></svg>Play levels</button>
+                <button class="btn" type="button" data-action="endless"><svg class="icon"><use href="#i-infinity"/></svg>Endless</button>
+                <button class="btn" type="button" data-action="skins"><svg class="icon"><use href="#i-palette"/></svg>Customise snake</button>
               </div>
               <p class="hint">Arrow keys or WASD to steer &middot; swipe on a phone</p>
             </section>
@@ -52,7 +81,18 @@
               <div class="levels-foot">
                 <div id="level-grid" class="tiles"></div>
                 <p id="level-detail" class="detail"></p>
-                <button class="btn" type="button" data-action="menu">Back</button>
+                <button class="btn" type="button" data-action="menu"><svg class="icon"><use href="#i-back"/></svg>Back</button>
+              </div>
+            </section>
+
+            <section class="screen screen-skins" data-screen="skins" hidden>
+              <div class="levels-head">
+                <h2>Customise your snake</h2>
+                <span data-field="skin-name"></span>
+              </div>
+              <div class="levels-foot">
+                <div id="skin-grid" class="skins"></div>
+                <button class="btn btn-primary" type="button" data-action="menu" data-primary><svg class="icon"><use href="#i-check"/></svg>Done</button>
               </div>
             </section>
 
@@ -67,9 +107,9 @@
             <section class="screen" data-screen="paused" hidden>
               <h2 class="big">Paused</h2>
               <div class="stack">
-                <button class="btn btn-primary" type="button" data-action="resume" data-primary>Resume</button>
-                <button class="btn" type="button" data-action="restart">Restart</button>
-                <button class="btn" type="button" data-action="menu">Quit to menu</button>
+                <button class="btn btn-primary" type="button" data-action="resume" data-primary><svg class="icon"><use href="#i-play"/></svg>Resume</button>
+                <button class="btn" type="button" data-action="restart"><svg class="icon"><use href="#i-restart"/></svg>Restart</button>
+                <button class="btn" type="button" data-action="menu"><svg class="icon"><use href="#i-home"/></svg>Quit to menu</button>
               </div>
             </section>
 
@@ -78,9 +118,9 @@
               <p class="score-big" data-field="cleared-score">0</p>
               <p class="sub" data-field="cleared-note"></p>
               <div class="stack">
-                <button class="btn btn-primary" type="button" data-action="next" data-primary>Next level</button>
-                <button class="btn" type="button" data-action="restart">Play again</button>
-                <button class="btn" type="button" data-action="levels">All levels</button>
+                <button class="btn btn-primary" type="button" data-action="next" data-primary><svg class="icon"><use href="#i-next"/></svg>Next level</button>
+                <button class="btn" type="button" data-action="restart"><svg class="icon"><use href="#i-restart"/></svg>Play again</button>
+                <button class="btn" type="button" data-action="levels"><svg class="icon"><use href="#i-grid"/></svg>All levels</button>
               </div>
             </section>
 
@@ -89,8 +129,8 @@
               <p class="score-big" data-field="over-score">0</p>
               <p class="sub" data-field="over-note"></p>
               <div class="stack">
-                <button class="btn btn-primary" type="button" data-action="restart" data-primary>Try again</button>
-                <button class="btn" type="button" data-action="back" data-field="over-back">All levels</button>
+                <button class="btn btn-primary" type="button" data-action="restart" data-primary><svg class="icon"><use href="#i-restart"/></svg>Try again</button>
+                <button class="btn" type="button" data-action="back"><svg class="icon"><use href="#i-back"/></svg><span data-field="over-back">All levels</span></button>
               </div>
               <p class="hint">Enter or R to retry</p>
             </section>
@@ -107,31 +147,31 @@
 
       <aside class="side">
         <section class="panel">
-          <h3>Controls</h3>
+          <h3><svg class="icon"><use href="#i-keyboard"/></svg>Controls</h3>
           <ul class="keys">
             <li><span><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> or <kbd>WASD</kbd></span><span>Steer</span></li>
-            <li><span>Click the board</span><span>Turn towards the click</span></li>
+            <li><span><svg class="icon"><use href="#i-mouse"/></svg>Click the board</span><span>Turn towards the click</span></li>
             <li><span><kbd>Space</kbd> <kbd>P</kbd></span><span>Pause</span></li>
             <li><span><kbd>R</kbd></span><span>Restart level</span></li>
             <li><span><kbd>Esc</kbd></span><span>Back</span></li>
-            <li><span>Swipe or on-screen arrows</span><span>Touch</span></li>
+            <li><span><svg class="icon"><use href="#i-hand"/></svg>Swipe or arrows</span><span>Touch</span></li>
           </ul>
         </section>
 
         <section class="panel">
-          <h3>On the board</h3>
+          <h3><svg class="icon"><use href="#i-map"/></svg>On the board</h3>
           <ul class="legend">
             <li><i class="ico ico-apple"></i><span><b>Apple</b> +10, counts toward the goal</span></li>
             <li><i class="ico ico-gold"></i><span><b>Golden apple</b> +50, gone after 6 seconds</span></li>
-            <li><i class="ico ico-wall"></i><span><b>Wall</b></span></li>
+            <li><i class="ico ico-wall"></i><span><b>Wall</b> crash and it's over</span></li>
             <li><i class="ico ico-mover"></i><span><b>Moving wall</b> slides back and forth</span></li>
-            <li><i class="ico ico-portal"></i><span><b>Portal</b> takes you to the same colour</span></li>
-            <li><i class="ico ico-edge"></i><span><b>Dashed edge</b> wraps to the other side</span></li>
+            <li><i class="ico ico-portal"></i><span><b>Portal</b> takes you to the one of the same colour</span></li>
+            <li><i class="ico ico-edge"></i><span><b>Glowing edge</b> go through it to come out the other side</span></li>
           </ul>
         </section>
 
         <details class="panel">
-          <summary>How it's built</summary>
+          <summary><svg class="icon"><use href="#i-code"/></svg>How it's built</summary>
           <p>Each object is made with a constructor function and inherits methods through its prototype chain:</p>
           <ul id="chains" class="chains"></ul>
         </details>
@@ -139,7 +179,7 @@
     </main>
 
     <footer class="team">
-      <h3>Team</h3>
+      <h3><svg class="icon"><use href="#i-users"/></svg>Team</h3>
       <ul>
         <li>Krishna Saathwik Adurthi <span>SE24UMCS005</span></li>
         <li>Manan Gupta <span>SE24UMCS007</span></li>

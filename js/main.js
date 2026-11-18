@@ -13,6 +13,7 @@
       new MovingWall(0, 0, 'h'),
       new ScorePopup(0, 0, ''),
       new EndlessLevel(),
+      Skin.LIST[5], // a StripedSkin
       game.input
     ];
 

@@ -2,9 +2,15 @@
 (function (global) {
   'use strict';
 
+  // Markup for one icon from the <svg> icon set in index.html.
+  function icon(name) {
+    return '<svg class="icon"><use href="#i-' + name + '"/></svg>';
+  }
+
   function UI() {
     this.overlay = document.getElementById('overlay');
     this.grid = document.getElementById('level-grid');
+    this.skinGrid = document.getElementById('skin-grid');
     this.detail = document.getElementById('level-detail');
     this.bar = document.getElementById('hud-progress');
     this.pauseBtn = document.getElementById('hud-pause');
@@ -26,11 +32,13 @@
   UI.prototype.connect = function (game) {
     this.game = game;
 
-    // One click handler for every button: level tiles and data-action buttons.
+    // One click handler for every button: level tiles, skins and data-action buttons.
     document.addEventListener('click', (e) => {
       const tile = e.target.closest('[data-level]');
+      const skin = e.target.closest('[data-skin]');
       const button = e.target.closest('[data-action]');
       if (tile) game.action('play', Number(tile.dataset.level));
+      else if (skin) game.action('skin', Number(skin.dataset.skin));
       else if (button) game.action(button.dataset.action);
     });
 
@@ -78,11 +86,15 @@
     if (state === 'menu') {
       this.text('menu-best', game.progress.endless
         ? 'Best endless score: ' + game.progress.endless
-        : 'Ten levels, one endless mode.');
+        : 'Ten levels, a creators’ level and endless mode.');
     }
 
     if (state === 'levels') {
       this.renderLevels(game);
+    }
+
+    if (state === 'skins') {
+      this.renderSkins(game);
     }
 
     if (state === 'ready') {
@@ -92,7 +104,7 @@
 
     if (state === 'cleared') {
       const last = game.isLastLevel();
-      this.text('cleared-title', last ? 'All ten levels cleared' : level.title() + ' cleared');
+      this.text('cleared-title', last ? 'You beat the creators’ level!' : level.title() + ' cleared');
       this.text('cleared-score', game.score);
       this.text('cleared-note', (game.newBest ? 'New best! ' : 'Best: ' + game.bestScore() + '. ') +
         'Includes a ' + Game.CLEAR_BONUS + ' point bonus.');
@@ -120,15 +132,34 @@
       const n = level.number;
       const best = game.progress.best[n];
       const open = game.isUnlocked(n);
-      const status = best ? best : open ? 'new' : 'locked';
-      const classes = 'tile' + (best ? ' is-done' : '') + (open ? '' : ' is-locked');
-      return '<button type="button" class="' + classes + '" data-level="' + n + '">' +
-        '<span class="tile-num">' + n + '</span>' +
+      const status = best ? icon('check') + best : open ? 'new' : icon('lock');
+      const classes = 'tile' + (best ? ' is-done' : '') + (open ? '' : ' is-locked') +
+        (level.creators ? ' is-creators' : '');
+      const label = level.creators ? icon('star') + ' ' + level.title() : n;
+      return '<button type="button" class="' + classes + '" data-level="' + n + '"' +
+        (open ? '' : ' aria-label="' + level.title() + ', locked"') + '>' +
+        '<span class="tile-num">' + label + '</span>' +
         '<span class="tile-meta">' + status + '</span></button>';
     }).join('');
 
     this.text('levels-total', 'Campaign total ' + game.campaignTotal());
     this.describeLevel(game.selected);
+  };
+
+  /* ---------- skin picker ---------- */
+
+  UI.prototype.renderSkins = function (game) {
+    const current = game.skin();
+    this.skinGrid.innerHTML = Skin.LIST.map((skin, i) => {
+      const on = skin === current;
+      return '<button type="button" class="skin' + (on ? ' is-on' : '') + '" data-skin="' + i + '"' +
+        ' aria-pressed="' + on + '">' +
+        '<span class="skin-bar" style="background:' + skin.swatch() + '"></span>' +
+        '<span class="skin-name">' + skin.name + '</span></button>';
+    }).join('');
+    this.text('skin-name', current.name);
+    const on = this.skinGrid.querySelector('.is-on');
+    if (on && this.overlay.contains(document.activeElement)) on.focus({ preventScroll: true });
   };
 
   UI.prototype.previewLevel = function (n) {
@@ -141,7 +172,7 @@
   UI.prototype.describeLevel = function (n) {
     const level = LEVELS[n - 1];
     const best = this.game.progress.best[n];
-    let text = n + '. ' + level.name + ' — ';
+    let text = (level.creators ? '' : n + '. ') + level.name + ' — ';
     if (!this.game.isUnlocked(n)) text += 'clear level ' + (n - 1) + ' to unlock';
     else if (best) text += 'best ' + best;
     else text += level.target + ' apples';
